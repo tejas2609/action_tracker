@@ -1,88 +1,303 @@
-# Action Tracker V2
+# Action Tracker
 
-A commitment control center with organization users, personal dashboards, dependency graphs, a right-side detail drawer and persistent direct chat.
+Turn meeting discussions into clear commitments, accountable ownership, and measurable progress.
 
-## Existing V1 installation
+Action Tracker is a meeting-to-action management application built with Angular, FastAPI, and PostgreSQL. It uses AI to extract commitments from meeting transcripts and helps teams track deadlines, dependencies, blockers, and follow-ups.
 
-Read **UPGRADE.md**. Keep your existing database and copy your existing `.env`. Apply migration 002; do not manually create tables or delete your V1 database.
+## Overview
 
-## Quick start with Docker
+Meeting notes often contain promises that are difficult to track after the discussion ends. Action Tracker connects those promises to responsible users, preserves their original context, and provides a shared view of what needs to happen next.
 
-1. Copy `backend/.env.example` to `backend/.env` and set `AI_API_KEY`.
-2. From this directory run `docker compose up --build`.
-3. Open http://localhost:8080 and choose a demo user.
+For example, a statement such as:
 
-Compose runs PostgreSQL, migrations, FastAPI and nginx. Compose overrides DATABASE_URL to its database service. If your current V1 database runs outside Docker, follow the local upgrade instructions instead to keep using that database.
+> “I’ll send Omar the access request today, before four.”
 
-## Local setup (no virtual environment required)
+can become a commitment with an owner, deadline, timing condition, and supporting source statement.
 
-Python 3.12 and Node.js 22 are recommended. PostgreSQL must be running.
+The recorded action is requesting approval. It does not imply that approval has been granted.
 
-```powershell
-cd backend
-python -m pip install -r requirements.txt
-# Copy .env.example to .env if starting fresh. Set DATABASE_URL and AI_API_KEY.
-python -m alembic upgrade head
-python -m uvicorn app.main:app --reload
-```
+## Features
 
-In a second terminal:
+| Feature | Description |
+| --- | --- |
+| Meeting analysis | Extract commitments, owners, deadlines, and conditions from meeting transcripts. |
+| Commitment tracking | Monitor progress and manage active, completed, or cancelled commitments. |
+| Deadline dashboard | Review missed deadlines and upcoming tasks in separate paginated cards. |
+| Dependency visualization | Explore relationships between commitments and their prerequisites. |
+| Blocker analysis | Review recorded blockers and unresolved conditions affecting progress. |
+| Natural-language search | Find commitments using questions such as “What does Omar need from me?” |
+| Follow-up assistance | Generate contextual follow-up messages for commitments. |
+| User profiles | View and edit personal profile information. |
+| Team management | Managers can add unassigned users to their team and remove direct reports. |
 
-```powershell
-cd frontend
-npm ci
-npm start
-```
+## Application Workflow
 
-Application: http://localhost:4200. API documentation: http://localhost:8000/docs.
+1. Sign in using an existing user account.
+2. Submit a meeting transcript for analysis.
+3. Review the extracted commitments and their supporting statements.
+4. Update commitment details and track progress.
+5. Monitor deadlines, dependencies, and blockers.
+6. Search for relevant commitments and generate follow-ups.
 
-## What's included
+AI-generated results should be reviewed before being treated as confirmed meeting outcomes.
 
-- Demo organization login, random bearer sessions stored hashed on the server, eight-hour expiry and session-specific sign-out.
-- Ten dummy organization members, plus imported V1 owner names. Organization directory with search, team and role filters.
-- Personal dashboard: total promises, active, on-track, at-risk, blocked, deadline-passed and completed counts. Attention results use page size 10.
-- Dashboard graph contains your commitments and their connected dependency chains.
-- My Commitments defaults to your own records only. List filtering/pagination, inline status updates, list/graph toggle.
-- Graph defaults to your commitments plus their immediate prerequisites and immediate dependents. Entire-chain mode is available. Scroll and zoom controls render every returned node, including disconnected personal commitments.
-- Right-side drawer: details/owner/status/progress, contextual follow-up, live blockers, graph/dependency edits, source quotation and audit timeline. Escape and close button dismiss it; keyboard focus stays in the drawer.
-- Follow-up recipient defaults to the owner when it is another user, or a prerequisite owner for your own promise. You can choose another colleague. Generate, review/edit, and explicitly Send to chat. The message includes a commitment link; sending creates a timeline event.
-- Direct chat is stored in PostgreSQL, refreshes every three seconds, and supports loading older messages. Open two different browsers/profiles or a normal and private window to test conversations as different users.
-- Attachment button is disabled. Attachment table, metadata schema and capability endpoint exist; upload endpoint returns 501 and attachment IDs in messages are rejected.
-- Blocker signals refresh every five seconds while the drawer is open. AI explanations are cached against commitment, dependency, progress, deadline and downstream context; changed context triggers regeneration. AI failures leave deterministic blocker signals visible and provide a manual retry.
-- AI transcript extraction uses numbered source lines; the backend copies source text. JSON-generation errors have one text-mode retry followed by JSON/Pydantic validation.
-- Meeting deletion retains its impact preview and recursively deletes related dependency components. Existing chat messages are preserved; links to deleted commitments become null.
+## Technology Stack
 
-## User ownership and permissions
+| Layer | Technologies |
+| --- | --- |
+| Frontend | Angular 19, TypeScript, RxJS, SCSS |
+| Backend | Python, FastAPI, Pydantic |
+| Persistence | PostgreSQL, SQLAlchemy |
+| Database migrations | Alembic |
+| AI integration | LangChain, Groq |
 
-A commitment has both display name `owner` and foreign key `owner_id`. V1 records are matched by owner name during migration; previously unseen owners become imported directory users. Review requires selecting an active organization user, preventing new orphan ownership.
-
-A signed-in user sees only their own commitments in the main list and dashboard. Other organization promises appear as graph/blocker context and can be inspected in the drawer. Meeting review and directory/chat are shared within the organization. Only the owner or the seeded Product Manager role can edit a commitment or its dependencies. Changing ownership removes it from the previous owner's personal view.
-
-The API enforces organization boundaries for records and conversations. **Demo sign-in deliberately lets anyone select a seeded user without a password.** It is a testing feature, not production identity verification. Do not expose this version publicly. `DEMO_LOGIN_ENABLED=false` disables demo login; it does not install a production identity provider. Integrate real authentication before deployment.
-
-## Database
-
-V1: meetings, commitments, dependencies, events, alembic_version.
-
-V2 adds organizations, users, login_sessions, conversations, messages and attachments, plus ownership and cached analysis columns. Migration `002` upgrades `001` and preserves existing records. Schema downgrade removes V2 users/chat/session data; use upgrades for normal operation.
+The backend keeps AI access behind a provider interface so that application services do not depend directly on a particular model SDK.
 
 ## Architecture
 
-Backend: `app/api` REST boundaries, `app/services` workflow/intelligence/messaging/deletion, `app/repositories` scoped persistence, `app/models` SQLAlchemy entities, `app/schemas` validation, `app/ai` provider contract and compatible adapter, `app/core` settings/database/auth, versioned Alembic migrations.
+The frontend separates application layout, shared infrastructure, reusable UI components, and feature-specific code. Each Angular component keeps its TypeScript, HTML, and SCSS in separate files.
 
-Frontend: lazy-loaded features in `src/app/features`, typed API/session/panel services in `core`, reusable table/pagination/graph/drawer/chat components in `shared`. Signals and OnPush change detection are used. No frontend API key.
+The backend separates HTTP endpoints, validation schemas, business logic, database models, and AI integration.
 
-## Limits
+```text
+backend/
+├── app/
+│   ├── ai/
+│   ├── api/
+│   ├── core/
+│   ├── models/
+│   ├── schemas/
+│   └── services/
+├── alembic.ini
+└── requirements.txt
 
-Risk remains an explainable heuristic, not a trained predictive model. Actual work completion, approvals and progress are user-managed. Dates are date-only; the team's backend calendar date is used. Chat uses polling rather than WebSockets. Attachment upload/download, notifications/unread badges, production authentication, organization administration and external integrations are not included. Very large workspaces need optimized server graph queries and canvas virtualization; V2 renders the complete graph in scrollable SVG without pagination or hidden nodes. Concurrent graph writes/deletion lack full locking; use one trusted demo organization for evaluation. AI availability/model quotas depend on your provider account.
-
-## Validation
-
-```powershell
-cd backend
-python -m pytest -q
-cd ../frontend
-npm run build -- --configuration production
+frontend/
+├── src/
+│   ├── app/
+│   │   ├── core/
+│   │   ├── features/
+│   │   ├── layout/
+│   │   └── shared/
+│   └── styles.scss
+├── angular.json
+├── package.json
+└── proxy.conf.json
 ```
 
-See VALIDATION.md for results and unverified runtime checks.
+## Prerequisites
+
+- Node.js 22 LTS and npm
+- Python 3.11 or later
+- PostgreSQL
+- A Groq API key
+- Git
+
+## Local Setup
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd <repository-folder>
+```
+
+### 2. Create the PostgreSQL database
+
+Connect with a PostgreSQL administrator account and run:
+
+```sql
+CREATE USER tracker WITH PASSWORD 'tracker';
+CREATE DATABASE tracker OWNER tracker;
+```
+
+These credentials are for local development. Use separate credentials and appropriate privileges for deployed environments.
+
+### 3. Configure the backend
+
+Create `backend/.env`:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://tracker:tracker@localhost:5432/tracker
+
+DEMO_LOGIN_ENABLED=true
+CORS_ORIGINS=http://localhost:4200
+
+AI_PROVIDER=groq
+AI_BASE_URL=https://api.groq.com
+AI_MODEL=openai/gpt-oss-20b
+AI_API_KEY=your-groq-api-key
+AI_TIMEOUT_SECONDS=120
+AI_MAX_OUTPUT_TOKENS=8192
+AI_JSON_MODE=true
+```
+
+For the LangChain `ChatGroq` integration, use the host-only base URL shown above. Adding `/openai/v1` can cause a duplicated request path.
+
+### 4. Install backend dependencies
+
+```bash
+cd backend
+python -m venv .venv
+```
+
+Activate the virtual environment.
+
+**Windows PowerShell:**
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+**macOS or Linux:**
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+The LangChain integration requires `langchain-core`, `langchain-groq`, and `langchain-openai`. If they have not yet been added to `requirements.txt`, install them:
+
+```bash
+python -m pip install langchain-core langchain-groq langchain-openai
+```
+
+### 5. Apply database migrations
+
+Run from the `backend` directory:
+
+```bash
+alembic upgrade head
+```
+
+### 6. Start the backend
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Interactive API documentation is available at:
+
+http://localhost:8000/docs
+
+### 7. Start the frontend
+
+Open a second terminal from the repository root:
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Open the application at:
+
+http://localhost:4200
+
+The Angular development proxy forwards `/api` requests to the backend on port `8000`.
+
+## Development Authentication
+
+The current login flow uses an existing user's name in lowercase as the username and `pass` as the shared development password.
+
+For example:
+
+```text
+Username: ben
+Password: pass
+```
+
+Registration is not currently part of the application.
+
+This authentication flow is for development and demonstration. Production deployment requires individual password hashing, secure credential management, and an appropriate session lifecycle. Disabling demo login alone does not implement production authentication.
+
+## Configuration Reference
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string. |
+| `DEMO_LOGIN_ENABLED` | Enables the development login flow. |
+| `CORS_ORIGINS` | Comma-separated allowed frontend origins. |
+| `AI_PROVIDER` | Selects the implemented AI provider. |
+| `AI_BASE_URL` | Provider endpoint configuration. |
+| `AI_MODEL` | Model identifier used for AI requests. |
+| `AI_API_KEY` | Provider API credential. |
+| `AI_TIMEOUT_SECONDS` | AI request timeout. |
+| `AI_MAX_OUTPUT_TOKENS` | Maximum generated output tokens per request. |
+| `AI_JSON_MODE` | Requests JSON-formatted model responses. |
+
+Backend settings load configuration from environment variables and `backend/.env`. Restart the backend after changing configuration.
+
+## Build and Validation
+
+Build the frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+Build output is generated under `frontend/dist/`.
+
+Check database migration status:
+
+```bash
+cd backend
+alembic current
+```
+
+Apply outstanding migrations:
+
+```bash
+alembic upgrade head
+```
+
+Before releasing changes, verify login, meeting analysis, commitment updates, dashboard pagination, search ownership, and team management against a development database.
+
+## Deployment Considerations
+
+The application currently includes development authentication. Complete the authentication work before exposing it publicly.
+
+For deployment:
+
+- Serve the Angular production build through a static web server.
+- Route `/api` requests to FastAPI through a reverse proxy.
+- Run the backend without `--reload`.
+- Use HTTPS and restrict allowed origins.
+- Store credentials in environment variables or a secret manager.
+- Apply database migrations as a controlled deployment step.
+- Configure database backups and application monitoring.
+- Keep transcripts, credentials, and sensitive record content out of logs.
+- Pin dependencies and maintain reproducible installation files.
+
+The Angular development proxy is not included in the production build. Configure equivalent API routing in the deployed environment.
+
+## Troubleshooting
+
+| Problem | Check |
+| --- | --- |
+| Database connection fails | Confirm PostgreSQL is running and `DATABASE_URL` is correct. |
+| Database tables are missing | Run `alembic upgrade head` from `backend/`. |
+| AI authentication fails | Check `AI_API_KEY` and restart the backend. |
+| Groq reports an unknown request URL | Use `AI_BASE_URL=https://api.groq.com` with `ChatGroq`. |
+| AI output exceeds its token budget | Reduce transcript size or increase the configured output limit. |
+| Search returns no commitments | Check generated ownership filters and title/source-statement matching. |
+| Frontend API calls fail | Confirm the backend port and development proxy configuration. |
+
+## Current Limitations
+
+- Login uses a shared development password.
+- Registration is not implemented.
+- AI extraction and search interpretation can require correction.
+- Deadline cards display task status; automated reminder delivery and escalation scheduling are not yet implemented.
+- Follow-up generation does not imply that a message has been sent.
+
+## Contributing
+
+Keep business logic in backend services and feature behavior in the relevant Angular feature folder. Reuse shared services and UI components where appropriate.
+
+Include database migrations with schema changes, document configuration changes, and describe validation performed in each pull request.
