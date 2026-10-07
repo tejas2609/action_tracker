@@ -1,0 +1,49 @@
+<div class="eyebrow">PROMISES WITH CONTEXT</div>
+<div class="page-title">
+  <div>
+    <h1>My commitments</h1>
+    <p>Your promises, blockers and the commitments that depend on you.</p>
+  </div>
+  <div class="segmented">
+    <button [class.active]="view() === 'list'" (click)="view.set('list')">
+      List</button
+    ><button [class.active]="view() === 'graph'" (click)="view.set('graph')">
+      Graph
+    </button>
+  </div>
+</div>
+@if (view() === "list") {
+  <div class="toolbar">
+    <input
+      placeholder="Search your commitments"
+      [(ngModel)]="text"
+      (ngModelChange)="filter()"
+    /><select [(ngModel)]="state" (ngModelChange)="filter()">
+      <option value="all">All statuses</option>
+      <option value="active">Active</option>
+      <option value="high">High risk</option>
+      <option value="waiting">Waiting / blocked</option>
+      <option value="overdue">Deadline passed</option>
+      <option value="completed">Completed</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  </div>
+  <section>
+    <commitment-list [items]="data().items" /><page-controls
+      [total]="data().total"
+      [page]="page()"
+      (change)="page.set($event)"
+    />
+  </section>
+} @else {
+  <section>
+    <div class="section-heading">
+      <h2>Your dependencies</h2>
+      <select [ngModel]="mode()" (ngModelChange)="mode.set($event)">
+        <option value="immediate">Immediate blockers & dependents</option>
+        <option value="connected">Entire connected chain</option>
+      </select>
+    </div>
+    <dependency-graph [items]="graph()" />
+  </section>
+}

@@ -1,0 +1,132 @@
+:host {
+  display: block;
+}
+aside {
+  position: fixed;
+  width: 240px;
+  height: 100vh;
+  border-right: 1px solid var(--line);
+  background: #fbfcf9;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace {
+  display: flex;
+  gap: 10px;
+  margin: 35px 0 25px;
+  padding: 16px 0;
+  border-block: 1px solid var(--line);
+  font-weight: 600;
+}
+
+nav {
+  display: grid;
+  gap: 7px;
+}
+
+nav a {
+  color: #66736c;
+  padding: 12px;
+  border-radius: 6px;
+  display: flex;
+  gap: 14px;
+}
+
+nav a.selected {
+  background: #e6f1ea;
+  color: var(--teal);
+  font-weight: 600;
+}
+
+nav a mat-icon {
+  width: 22px;
+  height: 22px;
+  font-size: 22px;
+  line-height: 22px;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.sign-out-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  mat-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+    line-height: 20px;
+  }
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 2;
+}
+
+.live-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--teal);
+  border-radius: 50%;
+  margin-right: 5px;
+}
+
+@media (max-width: 1100px) {
+  aside {
+    width: 205px;
+  }
+}
+
+@media (max-width: 700px) {
+  aside {
+    position: static;
+    width: auto;
+    height: auto;
+    padding: 15px;
+  }
+}
+
+@media (max-width: 700px) {
+  .workspace {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .sidebar-bottom {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  nav {
+    display: flex;
+    margin-top: 18px;
+    gap: 2px;
+  }
+}
+
+@media (max-width: 700px) {
+  nav a {
+    padding: 8px;
+    font-size: 12px;
+    gap: 3px;
+  }
+}
+
+@media (max-width: 700px) {
+  nav {
+    overflow-x: auto;
+  }
+  nav a {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}

@@ -1,0 +1,184 @@
+:host {
+  display: block;
+}
+
+.reason {
+  border-left: 2px solid #d6ac74;
+  padding: 8px 15px;
+  background: #fcf7ee;
+}
+
+.callout {
+  padding: 18px;
+  background: #edf4ee;
+  border-radius: 5px;
+}
+
+.callout p {
+  margin-bottom: 0;
+}
+
+.dependency {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timeline > div {
+  border-left: 1px solid var(--line);
+  position: relative;
+  padding: 0 0 15px 25px;
+}
+
+.timeline .dot {
+  position: absolute;
+  left: -5px;
+  top: 5px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #9dbaa5;
+}
+
+.timeline p {
+  margin: 4px 0;
+}
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #15281c55;
+  z-index: 30;
+}
+
+.commitment-drawer {
+  position: fixed;
+  right: 0;
+  left: auto;
+  top: 0;
+  width: min(800px, 95vw);
+  height: 100dvh;
+  background: var(--bg);
+  z-index: 31;
+  border-left: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.panel-header {
+  padding: 18px 24px;
+  min-height: 75px;
+  height: auto;
+  flex-shrink: 0;
+  background: #fbfcf9;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.panel-header .eyebrow {
+  display: block;
+  margin: 0 0 4px;
+}
+
+.panel-header button {
+  font-size: 25px;
+  padding: 0 9px;
+  line-height: 1.3;
+}
+
+.drawer-content {
+  overflow: auto;
+  padding: 20px;
+}
+
+.drawer-content section {
+  margin: 0 0 16px;
+}
+
+.drawer-content h2 {
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.drawer-content .v2-graph {
+  height: 360px;
+}
+
+.drawer-content fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.drawer-content fieldset:disabled {
+  opacity: 0.75;
+}
+
+.dependency-actions {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  max-width: 65%;
+}
+
+.dependency-actions select {
+  max-width: 240px;
+  padding: 7px;
+  font-size: 11px;
+  margin: 0;
+}
+
+.dependency-actions button {
+  font-size: 11px;
+  padding: 6px;
+}
+
+.analysis-note {
+  margin: 20px 0;
+  padding: 15px;
+  border-left: 2px solid var(--teal);
+  background: #f4f8f1;
+}
+
+@media (max-width: 700px) {
+  .commitment-drawer {
+    width: 100vw;
+  }
+}
+
+@media (max-width: 700px) {
+  .drawer-content {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dependency {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+
+@media (max-width: 700px) {
+  .dependency-actions {
+    max-width: 100%;
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

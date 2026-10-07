@@ -1,0 +1,63 @@
+@if (panels.peer(); as peer) {
+  <div class="chat-panel" role="dialog" aria-label="Direct message">
+    <header class="panel-header">
+      <div>
+        <strong>{{ peer.name }}</strong
+        ><small>{{ peer.team }} · {{ peer.role }}</small>
+      </div>
+      <button aria-label="Close chat" (click)="panels.closeChat()">×</button>
+    </header>
+    <div class="chat-messages" #scrollArea>
+      @if (hasMore()) {
+        <button class="text-button" (click)="older()">
+          Load older messages
+        </button>
+      }
+      @for (m of messages(); track m.id) {
+        <div class="message" [class.own]="m.sender_id === session.user()?.id">
+          <small
+            >{{ m.sender_id === session.user()?.id ? "You" : peer.name }} ·
+            {{ m.created_at | date: "MMM d, HH:mm" }}</small
+          >
+          @if (m.commitment_id) {
+            <button
+              class="text-button context-link"
+              (click)="panels.open(m.commitment_id)"
+            >
+              Related commitment ↗
+            </button>
+          }
+          <p>{{ m.body }}</p>
+        </div>
+      } @empty {
+        <div class="empty">Start a conversation with {{ peer.name }}.</div>
+      }
+    </div>
+    @if (error()) {
+      <div class="chat-error" role="alert">{{ error() }}</div>
+    }
+    <form class="chat-composer" (ngSubmit)="send()">
+      <textarea
+        name="body"
+        [(ngModel)]="draft"
+        rows="3"
+        placeholder="Write a message…"
+        aria-label="Message"
+      ></textarea>
+      <div class="section-heading">
+        <button
+          type="button"
+          disabled
+          title="Attachments are planned for a later version"
+        >
+          📎 Attachment · coming soon</button
+        ><button class="primary" [disabled]="sending() || !draft.trim()">
+          {{ sending() ? "Sending…" : "Send" }}
+        </button>
+      </div>
+    </form>
+    <small class="chat-footnote"
+      >Messages refresh every 3 seconds. Text messages are saved.</small
+    >
+  </div>
+}

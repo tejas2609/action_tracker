@@ -1,0 +1,32 @@
+<aside>
+  <a class="brand" routerLink="/"><span class="logo">↗</span>Action Tracker</a>
+  <div class="workspace">
+    <span class="avatar">{{ session.user()!.name.slice(0, 1) }}</span>
+    <div>
+      {{ session.user()!.name
+      }}<small>{{ session.user()!.team }} · {{ session.user()!.role }}</small>
+    </div>
+  </div>
+  <nav>
+    @for (n of nav; track n.path) {
+      <a
+        [routerLink]="n.path"
+        routerLinkActive="selected"
+        [routerLinkActiveOptions]="{ exact: n.path === '/' }"
+        ><mat-icon fontSet="material-icons-outlined" aria-hidden="true">
+          {{ n.icon }} </mat-icon
+        >{{ n.label }}</a
+      >
+    }
+  </nav>
+  <div class="sidebar-bottom">
+    <span class="live-dot"></span> Action Labs · demo workspace<small
+      >Version 2 · promises, people, progress</small
+    ><button class="text-button sign-out-button" (click)="logout()">
+      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">
+        logout
+      </mat-icon>
+      <span>Sign out</span>
+    </button>
+  </div>
+</aside>

@@ -1,0 +1,100 @@
+<div class="graph-tools">
+  <div>
+    <span class="legend-dot mine"></span>Your commitments
+    <span class="legend-dot"></span>Dependency context
+    <span class="legend-line"></span>Prerequisite → dependent
+  </div>
+  <div>
+    <button
+      (click)="zoom.set(Math.max(0.5, zoom() - 0.1))"
+      aria-label="Zoom out"
+    >
+      −</button
+    ><span>{{ (zoom() * 100).toFixed(0) }}%</span
+    ><button
+      (click)="zoom.set(Math.min(1.5, zoom() + 0.1))"
+      aria-label="Zoom in"
+    >
+      +</button
+    ><button (click)="zoom.set(1)">Reset</button>
+  </div>
+</div>
+@if (items().length) {
+  <div
+    class="graph-scroll v2-graph"
+    tabindex="0"
+    aria-label="Scrollable commitment dependency graph"
+  >
+    <svg
+      [attr.width]="layout().width * zoom()"
+      [attr.height]="layout().height * zoom()"
+      [attr.viewBox]="'0 0 ' + layout().width + ' ' + layout().height"
+      role="img"
+      aria-label="Arrows connect prerequisites to dependent commitments"
+    >
+      <defs>
+        <marker
+          id="dependency-arrow"
+          viewBox="0 0 10 10"
+          refX="10"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#94aaa0" />
+        </marker>
+      </defs>
+      @for (e of layout().edges; track e.key) {
+        <path
+          [attr.d]="e.path"
+          fill="none"
+          stroke="#a4b7ad"
+          stroke-width="1.6"
+          marker-end="url(#dependency-arrow)"
+        />
+      }
+      @for (n of layout().nodes; track n.id) {
+        <rect
+          [attr.x]="n.x"
+          [attr.y]="n.y"
+          width="240"
+          height="110"
+          rx="6"
+          [attr.fill]="n.is_mine || n.id === focus() ? '#eaf4ed' : '#fff'"
+          [attr.stroke]="n.risk.level === 'high' ? '#d6a18b' : '#cbd9d0'"
+        />
+        <foreignObject
+          [attr.x]="n.x + 12"
+          [attr.y]="n.y + 12"
+          width="216"
+          height="88"
+          ><div xmlns="http://www.w3.org/1999/xhtml" class="graph-node">
+            <button
+              class="text-button"
+              (click)="panels.open(n.id)"
+              [attr.title]="n.title"
+            >
+              {{ n.title }}</button
+            ><small>{{ n.owner }} · {{ n.due_date || "No deadline" }}</small
+            ><span
+              class="badge"
+              [class.high]="n.risk.level === 'high'"
+              [class.medium]="n.risk.level === 'medium'"
+              >{{ n.risk.state }}</span
+            >
+          </div></foreignObject
+        >
+      }
+    </svg>
+  </div>
+  <p class="muted">
+    {{ items().length }} commitments · Scroll horizontally and vertically; zoom
+    for an overview. Open any node for full details.
+  </p>
+} @else {
+  <div class="empty">
+    No commitments assigned to you yet. Confirm a meeting promise and choose
+    your user as owner.
+  </div>
+}

@@ -1,0 +1,91 @@
+<div class="eyebrow">YOUR COMMITMENT CONTROL CENTER</div>
+
+<div class="page-title">
+  <div>
+    <h1>Keep your promises moving.</h1>
+    <p>{{ session.user()?.name }}, here's what needs your attention next.</p>
+  </div>
+
+  <a class="button primary" routerLink="/meetings"> + Add a meeting </a>
+</div>
+
+@if (data(); as d) {
+  <div class="metrics v2-metrics">
+    @for (m of metrics(d); track m.label) {
+      <div class="metric">
+        <span>{{ m.label }}</span>
+        <strong>{{ m.value }}</strong>
+      </div>
+    }
+  </div>
+
+  <div class="dashboard-deadline-cards" [attr.aria-busy]="loading()">
+    <section>
+      <div class="section-heading">
+        <div>
+          <h2>Missed deadlines</h2>
+          <p class="muted">Active commitments whose deadline has passed.</p>
+        </div>
+
+        <span class="badge high"> {{ d.missed.total }} missed </span>
+      </div>
+
+      @if (d.missed.total > 0) {
+        <commitment-list [items]="d.missed.items" />
+      } @else {
+        <p class="empty">No missed deadlines.</p>
+      }
+
+      <div
+        class="dashboard-card-pagination"
+        [class.is-loading]="loading()"
+        [attr.inert]="loading() ? '' : null"
+      >
+        <page-controls
+          [total]="d.missed.total"
+          [page]="d.missed.page"
+          [size]="d.missed.page_size"
+          (change)="changeMissedPage($event)"
+        />
+      </div>
+    </section>
+
+    <section>
+      <div class="section-heading">
+        <div>
+          <h2>Upcoming tasks</h2>
+          <p class="muted">Active commitments due today or later.</p>
+        </div>
+
+        <span class="badge medium"> {{ d.upcoming.total }} upcoming </span>
+      </div>
+
+      @if (d.upcoming.total > 0) {
+        <commitment-list [items]="d.upcoming.items" />
+      } @else {
+        <p class="empty">No upcoming tasks.</p>
+      }
+
+      <div
+        class="dashboard-card-pagination"
+        [class.is-loading]="loading()"
+        [attr.inert]="loading() ? '' : null"
+      >
+        <page-controls
+          [total]="d.upcoming.total"
+          [page]="d.upcoming.page"
+          [size]="d.upcoming.page_size"
+          (change)="changeUpcomingPage($event)"
+        />
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <h2>Your dependency landscape</h2>
+    <p class="muted">
+      All your commitments and their connected upstream/downstream context.
+    </p>
+    <dependency-graph [items]="graph()" />
+  </section>
+}

@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+.shell {
+  margin-left: 240px;
+}
+
+main {
+  padding: 40px;
+  max-width: 1600px;
+  margin: auto;
+}
+
+@media (max-width: 1100px) {
+  .shell {
+    margin-left: 205px;
+  }
+}
+
+@media (max-width: 1100px) {
+  main {
+    padding: 25px;
+  }
+}
+
+@media (max-width: 700px) {
+  .shell {
+    margin: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  main {
+    padding: 20px;
+  }
+}

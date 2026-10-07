@@ -1,0 +1,16 @@
+<app-sidebar />
+<div class="shell">
+  <app-header />
+  <main>
+    @if (api.error()) {
+      <div class="error" role="alert">
+        {{ api.error() }}<button (click)="api.error.set('')">Dismiss</button>
+      </div>
+    }
+    @if (api.busy()) {
+      <div class="loading" role="status">Working on it…</div>
+    }
+    <router-outlet />
+  </main>
+</div>
+<commitment-drawer /><chat-panel />

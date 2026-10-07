@@ -1,0 +1,14 @@
+<div class="pagination">
+  <span
+    >{{ total() ? (page() - 1) * size() + 1 : 0 }}–{{ end() }} of
+    {{ total() }}</span
+  >
+  <div>
+    <button [disabled]="page() <= 1" (click)="change.emit(page() - 1)">
+      ← Previous</button
+    ><span>Page {{ page() }} of {{ pages() }}</span
+    ><button [disabled]="page() >= pages()" (click)="change.emit(page() + 1)">
+      Next →
+    </button>
+  </div>
+</div>

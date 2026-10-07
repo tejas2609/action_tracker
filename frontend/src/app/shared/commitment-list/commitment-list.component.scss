@@ -1,0 +1,49 @@
+:host {
+  display: block;
+}
+
+.table-wrap {
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  padding: 14px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+td {
+  padding: 18px 8px;
+  border-bottom: 1px solid #edf0eb;
+  min-width: 95px;
+}
+
+td:first-child {
+  width: 52%;
+  min-width: 220px;
+}
+
+td a {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+tr:last-child td {
+  border: 0;
+}
+
+.inline-status {
+  padding: 7px;
+  font-size: 12px;
+  min-width: 100px;
+  margin: 0;
+}

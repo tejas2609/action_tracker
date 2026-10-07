@@ -1,0 +1,133 @@
+<div class="eyebrow">YOUR ACCOUNT</div>
+<h1>My profile</h1>
+
+@if (data(); as d) {
+  <section>
+    <div class="section-heading">
+      <div>
+        <h2>{{ d.user.name }}</h2>
+        <p class="muted">{{ d.user.role }} · {{ d.user.team }}</p>
+      </div>
+
+      @if (d.user.is_manager) {
+        <span class="badge">Manager</span>
+      }
+    </div>
+
+    <form (ngSubmit)="save()">
+      <label>
+        Name
+        <input
+          name="name"
+          [(ngModel)]="name"
+          required
+          maxlength="120"
+          [disabled]="working()"
+        />
+      </label>
+
+      <p class="muted">
+        Username: {{ name.trim().toLowerCase() }}
+        — changing your name changes your login username.
+      </p>
+
+      <label>
+        Email
+        <input
+          name="email"
+          type="email"
+          [(ngModel)]="email"
+          required
+          maxlength="200"
+          [disabled]="working()"
+        />
+      </label>
+
+      <button
+        type="submit"
+        class="primary"
+        [disabled]="working() || !name.trim() || !email.trim()"
+      >
+        {{ working() ? "Please wait…" : "Save profile" }}
+      </button>
+    </form>
+
+    @if (message()) {
+      <p role="status">{{ message() }}</p>
+    }
+  </section>
+
+  <section>
+    <h2>My manager</h2>
+
+    @if (d.manager; as manager) {
+      <strong>{{ manager.name }}</strong>
+      <p class="muted">{{ manager.role }} · {{ manager.team }}</p>
+    } @else {
+      <p class="muted">None</p>
+    }
+  </section>
+
+  @if (d.user.is_manager) {
+    <section>
+      <div class="section-heading">
+        <h2>People in my team</h2>
+        <span class="badge"> {{ d.members.length }} people </span>
+      </div>
+
+      <div class="people-grid">
+        @for (member of d.members; track member.id) {
+          <article class="person-card">
+            <strong>{{ member.name }}</strong>
+            <p class="muted">{{ member.role }} · {{ member.team }}</p>
+
+            <button
+              type="button"
+              [disabled]="working()"
+              (click)="remove(member)"
+            >
+              Remove from team
+            </button>
+          </article>
+        } @empty {
+          <p class="empty">No team members yet.</p>
+        }
+      </div>
+    </section>
+
+    <section>
+      <h2>Add a team member</h2>
+      <p class="muted">Only people without a manager can be added.</p>
+
+      <div class="toolbar">
+        <select
+          aria-label="Available team member"
+          [ngModel]="selectedUser"
+          (ngModelChange)="selectedUser = $event"
+          [disabled]="working()"
+        >
+          <option value="">Choose a person</option>
+
+          @for (user of d.available; track user.id) {
+            <option [value]="user.id">{{ user.name }} · {{ user.role }}</option>
+          }
+        </select>
+
+        <button
+          type="button"
+          class="primary"
+          [disabled]="working() || !selectedUser"
+          (click)="add()"
+        >
+          Add to team
+        </button>
+      </div>
+
+      @if (!d.available.length) {
+        <p class="muted">No eligible users are available.</p>
+      }
+    </section>
+  }
+} @else {
+  <p class="empty">Loading profile…</p>
+}

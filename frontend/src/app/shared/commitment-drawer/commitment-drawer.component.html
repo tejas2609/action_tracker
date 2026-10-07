@@ -1,0 +1,278 @@
+@if (panels.commitment()) {
+  <div class="drawer-backdrop" (click)="panels.close()"></div>
+  <aside
+    class="commitment-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="drawer-title"
+    tabindex="-1"
+    id="commitment-drawer"
+  >
+    <header class="panel-header">
+      <div>
+        <span class="eyebrow">COMMITMENT DETAILS</span
+        ><small>Context, blockers and the next move</small>
+      </div>
+      <button aria-label="Close commitment" (click)="panels.close()">×</button>
+    </header>
+    @if (item(); as c) {
+      <div class="drawer-content">
+        <section>
+          <div class="section-heading">
+            <h2 id="drawer-title">{{ c.title }}</h2>
+            <span class="badge" [class.high]="c.risk.level === 'high'"
+              >{{ c.risk.level }} risk</span
+            >
+          </div>
+          @if (!c.can_edit) {
+            <p class="muted">
+              Dependency context · owned by {{ c.owner }}. You can view it and
+              send a follow-up.
+            </p>
+          }
+          <fieldset
+            [disabled]="!c.can_edit || saving()"
+            (input)="dirty = true"
+            (change)="dirty = true"
+          >
+            <label>Promise<input [(ngModel)]="edit.title" /></label>
+            <div class="form-grid">
+              <label
+                >Owner<select [(ngModel)]="edit.owner_id">
+                  @for (u of directory.users(); track u.id) {
+                    <option [value]="u.id">{{ u.name }} · {{ u.team }}</option>
+                  }
+                </select></label
+              ><label
+                >Deadline<input
+                  type="date"
+                  [(ngModel)]="edit.due_date" /></label
+              ><label
+                >Status<select [(ngModel)]="edit.status">
+                  <option value="active">Active</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select></label
+              ><label
+                >Progress · {{ edit.progress }}%<input
+                  type="range"
+                  min="0"
+                  max="100"
+                  [(ngModel)]="edit.progress"
+              /></label>
+            </div>
+            <label
+              >Waiting condition<input [(ngModel)]="edit.condition" /></label
+            ><label class="checkbox"
+              ><input
+                type="checkbox"
+                [(ngModel)]="edit.condition_met"
+              />Condition satisfied</label
+            ><label
+              >Current blocker<textarea
+                [(ngModel)]="edit.blocker"
+                rows="2"
+              ></textarea>
+            </label>
+          </fieldset>
+          @if (c.can_edit) {
+            <button
+              class="primary"
+              [disabled]="saving() || !dirty"
+              (click)="save()"
+            >
+              Save changes
+            </button>
+          }
+          @if (dirty) {
+            <small
+              >Unsaved edits. Live updates will not overwrite your draft.</small
+            >
+          }
+        </section>
+        <section>
+          <div class="section-heading">
+            <h2>Contextual follow-up</h2>
+            <button
+              [disabled]="drafting() || !recipientId"
+              (click)="followup()"
+            >
+              {{ drafting() ? "Drafting…" : "Generate draft" }}
+            </button>
+          </div>
+          <p class="muted">
+            Choose who needs to act, review the draft, then send it to their
+            chat.
+          </p>
+          <label
+            >Recipient<select
+              [(ngModel)]="recipientId"
+              (ngModelChange)="draft = ''"
+            >
+              <option value="">Choose a colleague</option>
+              @for (u of directory.users(); track u.id) {
+                @if (u.id !== session.user()?.id) {
+                  <option [value]="u.id">{{ u.name }} · {{ u.team }}</option>
+                }
+              }
+            </select></label
+          ><textarea
+            [(ngModel)]="draft"
+            rows="5"
+            placeholder="Generate a contextual follow-up or write your own."
+          ></textarea>
+          <div class="toolbar">
+            <button
+              class="primary"
+              [disabled]="!draft.trim() || sending() || !recipientId"
+              (click)="sendFollowup()"
+            >
+              {{ sending() ? "Sending…" : "Send to chat" }}</button
+            ><button [disabled]="!recipientId" (click)="openChat(c)">
+              Open conversation
+            </button>
+          </div>
+          @if (c.owner_id === session.user()?.id) {
+            <small
+              >You're the owner; choose a blocker owner or another colleague for
+              the follow-up.</small
+            >
+          }
+          @if (!c.owner_id) {
+            <small
+              >Assign this promise to an organization user before
+              messaging.</small
+            >
+          }
+        </section>
+        <section>
+          <div class="section-heading">
+            <h2>What's stopping it?</h2>
+            <button
+              [disabled]="analyzing()"
+              (click)="analyzedRevision = ''; refreshAnalysis()"
+            >
+              Refresh AI explanation
+            </button>
+          </div>
+          @for (r of c.risk.reasons; track r) {
+            <p class="reason">{{ r }}</p>
+          } @empty {
+            <p>No unresolved blockers detected.</p>
+          }
+          <div class="callout">
+            <strong>Next action</strong>
+            <p>{{ c.risk.next_action }}</p>
+          </div>
+          @if (analyzing()) {
+            <p class="muted">
+              Updating explanation from the latest dependencies…
+            </p>
+          }
+          @if (analysisError()) {
+            <p class="muted">
+              {{ analysisError() }} The live blocker signals above remain
+              available.
+            </p>
+          }
+          @if (c.analysis?.explanation && !c.analysis?.stale) {
+            <div class="analysis-note">
+              <strong>AI context</strong>
+              <p>{{ c.analysis?.explanation }}</p>
+              <small>{{ c.analysis?.next_action }}</small>
+            </div>
+          }
+          <small
+            >Signals refresh every 5 seconds. AI explanations refresh when their
+            underlying context changes.</small
+          >
+        </section>
+        <section>
+          <h2>Dependencies & impact</h2>
+          <dependency-graph [items]="c.related || []" [focus]="c.id" />
+          <h3>Prerequisites</h3>
+          @for (id of c.dependencies; track id) {
+            <div class="dependency">
+              <button class="text-button" (click)="panels.open(id)">
+                {{ name(id) }}
+              </button>
+              @if (c.can_edit) {
+                <div class="dependency-actions">
+                  <select
+                    [ngModel]="replacements[id] || id"
+                    (ngModelChange)="replacements[id] = $event"
+                    aria-label="Replacement prerequisite"
+                  >
+                    @for (x of candidates(); track x.id) {
+                      @if (x.id !== c.id) {
+                        <option [value]="x.id">
+                          {{ x.owner }} · {{ x.title }}
+                        </option>
+                      }
+                    }</select
+                  ><button
+                    [disabled]="
+                      saving() || !replacements[id] || replacements[id] === id
+                    "
+                    (click)="replace(id)"
+                  >
+                    Replace</button
+                  ><button [disabled]="saving()" (click)="remove(id)">
+                    Remove
+                  </button>
+                </div>
+              }
+            </div>
+          } @empty {
+            <p class="muted">No prerequisite links.</p>
+          }
+          @if (c.can_edit) {
+            <div class="toolbar">
+              <select [(ngModel)]="prerequisite">
+                <option value="">Add prerequisite…</option>
+                @for (x of candidates(); track x.id) {
+                  @if (x.id !== c.id && !c.dependencies.includes(x.id)) {
+                    <option [value]="x.id">
+                      {{ x.owner }} · {{ x.title }}
+                    </option>
+                  }
+                }</select
+              ><button [disabled]="!prerequisite || saving()" (click)="add()">
+                Add
+              </button>
+            </div>
+          }
+          <h3>Downstream impact · {{ c.impact.length }}</h3>
+          @for (id of c.impact; track id) {
+            <p>
+              <button class="text-button" (click)="panels.open(id)">
+                {{ name(id) }}
+              </button>
+            </p>
+          } @empty {
+            <p class="muted">No linked downstream commitments.</p>
+          }
+        </section>
+        <section>
+          <h2>Source & accountability</h2>
+          <p>{{ c.meeting?.title }} · {{ c.meeting?.held_on }}</p>
+          <blockquote>{{ c.source_statement }}</blockquote>
+          <div class="timeline">
+            @for (e of c.timeline; track e.id) {
+              <div>
+                <span class="dot"></span
+                ><small
+                  >{{ e.created_at | date: "MMM d, yyyy · HH:mm" }} ·
+                  {{ e.kind.replaceAll("_", " ") }}</small
+                >
+                <p>{{ e.message }}</p>
+              </div>
+            }
+          </div>
+        </section>
+      </div>
+    } @else {
+      <div class="empty">{{ loadError() || "Loading commitment…" }}</div>
+    }
+  </aside>
+}

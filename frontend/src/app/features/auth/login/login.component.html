@@ -1,0 +1,55 @@
+<div class="login-shell">
+  <div class="login-card">
+    <a class="brand">
+      <span class="logo">↗</span>
+      Action Tracker
+    </a>
+
+    <div class="eyebrow">PROMISES WITH ACCOUNTABILITY</div>
+
+    <h1>Welcome back.</h1>
+    <p>Sign in to your commitments and conversations.</p>
+
+    <form [formGroup]="form" (ngSubmit)="login()">
+      <label for="login-username">Username</label>
+      <input
+        id="login-username"
+        name="username"
+        type="text"
+        formControlName="username"
+        placeholder="Enter your name in lowercase"
+        autocomplete="username"
+        autocapitalize="none"
+        spellcheck="false"
+        required
+        maxlength="120"
+      />
+
+      <label for="login-password">Password</label>
+      <input
+        id="login-password"
+        name="password"
+        type="password"
+        formControlName="password"
+        placeholder="Enter your password"
+        autocomplete="current-password"
+        required
+        maxlength="200"
+      />
+
+      <button
+        type="submit"
+        class="primary"
+        [disabled]="form.invalid || signingIn()"
+      >
+        {{ signingIn() ? "Signing in…" : "Sign in →" }}
+      </button>
+    </form>
+
+    @if (api.error()) {
+      <div class="error" role="alert">
+        {{ api.error() }}
+      </div>
+    }
+  </div>
+</div>

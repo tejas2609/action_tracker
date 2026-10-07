@@ -1,0 +1,32 @@
+<div class="eyebrow">ASK YOUR COMMITMENTS</div>
+<h1>Find the next move.</h1>
+<p>Ask about promises, people, blockers or deadlines.</p>
+<form class="search-bar" (ngSubmit)="search()">
+  <input
+    [(ngModel)]="query"
+    name="query"
+    placeholder="What's blocking the launch?"
+    aria-label="Commitment search"
+  /><button class="primary" [disabled]="api.busy() || !query.trim()">
+    Search commitments →
+  </button>
+</form>
+<div class="chips">
+  @for (q of examples; track q) {
+    <button (click)="query = q; search()">{{ q }}</button>
+  }
+</div>
+@if (searched()) {
+  <section>
+    <h2>{{ interpretation() }}</h2>
+    <p class="muted">
+      {{ results().length }} matching commitments · grounded in your confirmed
+      promises
+    </p>
+    <commitment-list [items]="results()" />
+  </section>
+} @else {
+  <div class="empty">
+    Every answer leads back to a promise, its source and its next action.
+  </div>
+}

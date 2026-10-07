@@ -1,0 +1,38 @@
+:host {
+  display: block;
+}
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #f2f5ed;
+}
+
+.login-card {
+  max-width: 520px;
+  background: white;
+  padding: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.login-card .brand {
+  margin-bottom: 35px;
+}
+
+.login-card h1 {
+  font-size: 35px;
+  line-height: 1.2;
+}
+
+.login-card .primary {
+  width: 100%;
+  margin-top: 12px;
+}
+
+@media (max-width: 700px) {
+  .login-card {
+    padding: 25px;
+  }
+}
