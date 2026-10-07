@@ -84,6 +84,9 @@
               Save changes
             </button>
           }
+          @if (c.owner_id === session.user()?.id) {
+            <commitment-emails [commitmentId]="c.id" />
+          }
           @if (dirty) {
             <small
               >Unsaved edits. Live updates will not overwrite your draft.</small
@@ -256,6 +259,11 @@
         <section>
           <h2>Source & accountability</h2>
           <p>{{ c.meeting?.title }} · {{ c.meeting?.held_on }}</p>
+          @if (c.meeting; as meeting) {
+            <p>{{ meeting.title }} · {{ meeting.held_on }}</p>
+          } @else {
+            <p>Created from an email reviewed by the owner.</p>
+          }
           <blockquote>{{ c.source_statement }}</blockquote>
           <div class="timeline">
             @for (e of c.timeline; track e.id) {

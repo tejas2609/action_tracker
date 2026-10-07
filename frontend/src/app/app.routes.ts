@@ -58,6 +58,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import("./features/profile/profile.component").then((m) => m.Profile),
       },
+      {
+        path: "integrations",
+        loadComponent: () =>
+          import("./features/integations/integrations.component").then(
+            (m) => m.Integrations,
+          ),
+      },
     ],
   },
   { path: "**", redirectTo: "" },

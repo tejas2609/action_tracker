@@ -5,6 +5,7 @@ export interface DashboardData {
   metrics: Record<string, number>;
   missed: Page<Commitment>;
   upcoming: Page<Commitment>;
+  team_missed: Page<Commitment> | null;
 }
 @Injectable({ providedIn: "root" })
 export class DashboardService {

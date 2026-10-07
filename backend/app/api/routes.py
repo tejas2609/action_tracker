@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import date
+from typing import Literal
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import current_user
@@ -16,6 +18,7 @@ from app.schemas.contracts import (
     FollowupInput,
 )
 from app.services.intelligence import serialize
+from app.services.team_deadlines import team_missed_deadlines
 
 router = APIRouter(prefix="/api")
 
@@ -82,6 +85,33 @@ def commitments(
     }
 
 
+@router.get("/team-missed-deadlines")
+def team_deadlines(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    q: str = "",
+    owner_id: str = "",
+    due_from: date | None = None,
+    due_to: date | None = None,
+    blocked: Literal["all", "yes", "no"] = "all",
+    sort: Literal["due_date", "owner", "title", "progress"] = "due_date",
+    direction: Literal["asc", "desc"] = "asc",
+    s=Depends(service),
+):
+    return team_missed_deadlines(
+        s,
+        page,
+        page_size,
+        q,
+        owner_id,
+        due_from,
+        due_to,
+        blocked,
+        sort,
+        direction,
+    )
+
+
 @router.get("/dashboard")
 def dashboard(
     missed_page: int = Query(1, ge=1),
@@ -133,6 +163,9 @@ def dashboard(
         },
         "missed": paginate(missed, missed_page),
         "upcoming": paginate(upcoming, upcoming_page),
+        "team_missed": (
+            team_missed_deadlines(s, page_size=5) if s.s.actor.is_manager else None
+        ),
     }
 
 
@@ -195,7 +228,7 @@ def detail(id: str, s=Depends(service)):
     result["timeline"] = sorted(
         [e for e in s.s.all(Event) if e.commitment_id == id], key=lambda e: e.created_at
     )
-    result["meeting"] = s.s.get(Meeting, c.meeting_id)
+    result["meeting"] = s.s.get(Meeting, c.meeting_id) if c.meeting_id else None
     _, fingerprint = s.blocker_context(id)
     result["analysis"] = {
         "explanation": c.analysis_text,

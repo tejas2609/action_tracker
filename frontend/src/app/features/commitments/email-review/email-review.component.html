@@ -1,0 +1,111 @@
+<div class="review-heading">
+  <div>
+    <h2>Email review</h2>
+    <p>Review proposed tasks before adding them to your commitments.</p>
+  </div>
+
+  <button
+    type="button"
+    [disabled]="working()"
+    (click)="scan()"
+  >
+    {{ working() ? 'Please wait…' : 'Check Gmail' }}
+  </button>
+</div>
+
+@if (message()) {
+  <p role="status">{{ message() }}</p>
+}
+
+@for (item of data().items; track item.id) {
+  <article class="proposal">
+    <small>
+      {{ item.sender }} ·
+      {{ item.received_at | date: 'medium' }}
+    </small>
+
+    <p class="subject">{{ item.subject }}</p>
+
+    <label>
+      Commitment
+      <input
+        [(ngModel)]="item.title"
+        [disabled]="working()"
+        maxlength="500"
+      />
+    </label>
+
+    <label>
+      Due date
+      <input
+        type="date"
+        [(ngModel)]="item.due_date"
+        [disabled]="working()"
+      />
+    </label>
+
+    <p>{{ item.description }}</p>
+
+    <div class="actions">
+      <button
+        type="button"
+        [disabled]="working()"
+        (click)="accept(item)"
+      >
+        Accept
+      </button>
+
+      <button
+        type="button"
+        class="secondary"
+        [disabled]="working()"
+        (click)="reject(item)"
+      >
+        Reject
+      </button>
+
+      <button
+        type="button"
+        class="secondary"
+        [disabled]="working()"
+        (click)="preview(item)"
+      >
+        Read source email
+      </button>
+    </div>
+  </article>
+} @empty {
+  <p>{{ loading() ? 'Loading proposals…' : 'No proposals awaiting review.' }}</p>
+}
+
+<page-controls
+  [total]="data().total"
+  [page]="page()"
+  [size]="10"
+  (change)="load($event)"
+/>
+
+@if (source(); as email) {
+  <section class="source-preview" aria-label="Source email">
+    <button
+      type="button"
+      class="secondary"
+      (click)="source.set(null)"
+    >
+      Close email
+    </button>
+
+    <h3>{{ email.subject }}</h3>
+
+    <p>
+      {{ email.sender }} ·
+      {{ email.received_at | date: 'medium' }}
+    </p>
+
+    <pre>{{ email.body_text }}</pre>
+
+    @if (email.truncated) {
+      <p>Only the first part of this email is displayed.</p>
+    }
+  </section>
+}

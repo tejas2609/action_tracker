@@ -5,6 +5,8 @@ from app.api.routes import router
 from app.api.social import router as social_router
 from app.api.profile import router as profile_router
 from app.api.meeting_deletion import router as deletion_router
+from app.api.integrations import router as integrations_router
+from app.api.email_actions import router as email_actions_router
 
 app = FastAPI(title="Action Tracker", version="2.0.0")
 app.add_middleware(
@@ -17,3 +19,5 @@ app.include_router(router)
 app.include_router(social_router)
 app.include_router(deletion_router)
 app.include_router(profile_router)
+app.include_router(integrations_router)
+app.include_router(email_actions_router)

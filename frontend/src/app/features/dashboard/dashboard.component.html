@@ -81,6 +81,22 @@
     </section>
   </div>
 
+  @if (session.user()?.is_manager && d.team_missed; as team) {
+    <section>
+      <div class="section-heading">
+        <div>
+          <h2>Team missed deadlines</h2>
+          <p class="muted">The five oldest missed deadlines from your direct reports.</p>
+        </div>
+        <span class="badge high">{{ team.total }} missed</span>
+      </div>
+      <commitment-list [items]="team.items" />
+      <a class="button" routerLink="/commitments" [queryParams]="{ view: 'team-missed' }">
+        View more team missed deadlines
+      </a>
+    </section>
+  }
+
   <section>
     <h2>Your dependency landscape</h2>
     <p class="muted">

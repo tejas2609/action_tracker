@@ -5,4 +5,5 @@ export const NAVIGATION = [
   { path: '/users', label: 'Users', icon: 'people' },
   { path: '/search', label: 'Search', icon: 'search' },
   { path: '/profile', label: 'My profile', icon: 'account_circle' },
+  { path: "/integrations", label: "Integrations", icon: "extension"},
 ] as const;

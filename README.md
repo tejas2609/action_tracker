@@ -29,6 +29,7 @@ The recorded action is requesting approval. It does not imply that approval has 
 | Follow-up assistance | Generate contextual follow-up messages for commitments. |
 | User profiles | View and edit personal profile information. |
 | Team management | Managers can add unassigned users to their team and remove direct reports. |
+| Team missed deadlines | Managers see the five oldest missed deadlines on the dashboard and a paginated team table on Commitments, with search, owner, deadline range, blocker filters, and sorting. |
 
 ## Application Workflow
 

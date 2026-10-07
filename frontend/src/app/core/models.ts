@@ -28,7 +28,7 @@ export interface Commitment {
   condition_met: boolean;
   blocker: string;
   source_statement: string;
-  meeting_id: string;
+  meeting_id: string | null;
   risk: Risk;
   dependencies: string[];
   impact: string[];
@@ -47,7 +47,7 @@ export interface Commitment {
     message: string;
     created_at: string;
   }[];
-  meeting?: Meeting;
+  meeting?: Meeting | null;
 }
 export interface Finding {
   kind: string;

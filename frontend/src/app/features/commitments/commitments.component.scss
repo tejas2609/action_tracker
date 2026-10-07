@@ -3,10 +3,24 @@
 }
 
 .segmented {
+  flex-wrap: wrap;
   display: flex;
   background: #eaf0e8;
   padding: 4px;
   border-radius: 6px;
+}
+
+.team-filters {
+  flex-wrap: wrap;
+  align-items: end;
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  input, select { width: 100%; }
 }
 
 .segmented button {
@@ -18,4 +32,10 @@
 .segmented button.active {
   background: white;
   color: var(--teal);
+}
+
+.commitment-sections {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 20px;
 }

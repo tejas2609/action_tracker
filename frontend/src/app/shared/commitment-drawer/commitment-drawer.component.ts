@@ -17,10 +17,11 @@ import { Api } from "../../core/api.service";
 import { Panels } from "../../core/panels.service";
 import { Commitment, User } from "../../core/models";
 import { DependencyGraph } from "../dependency-graph/dependency-graph.component";
+import { CommitmentEmails } from "../commitment-emails/commitment-emails.component";
 @Component({
   selector: "commitment-drawer",
   standalone: true,
-  imports: [FormsModule, DatePipe, DependencyGraph],
+  imports: [FormsModule, DatePipe, DependencyGraph, CommitmentEmails],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./commitment-drawer.component.html",
   styleUrl: "./commitment-drawer.component.scss",

@@ -220,8 +220,8 @@ def send(
         raise HTTPException(422, "Message cannot be blank")
     if body.commitment_id:
         c = db.get(Commitment, body.commitment_id)
-        meeting = db.get(Meeting, c.meeting_id) if c else None
-        if not c or not meeting or meeting.organization_id != actor.organization_id:
+
+        if not c or c.organization_id != actor.organization_id or c.status == "review":
             raise HTTPException(404, "Commitment not found")
     conv = conversation(db, actor, peer)
     msg = Message(

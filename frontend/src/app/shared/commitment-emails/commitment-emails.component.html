@@ -1,0 +1,57 @@
+<section>
+  <div class="heading">
+    <h2>Related emails</h2>
+
+    <button
+      type="button"
+      [disabled]="loading()"
+      (click)="load(data().page)"
+    >
+      Refresh
+    </button>
+  </div>
+
+  @if (error()) {
+    <p role="alert">{{ error() }}</p>
+  }
+
+  @for (email of data().items; track email.id) {
+    <article>
+      <h3>{{ email.subject || '(No subject)' }}</h3>
+
+      <small>
+        {{ email.sender }} ·
+        {{ email.received_at | date: 'medium' }}
+      </small>
+
+      <p>{{ email.description }}</p>
+
+      <details>
+        <summary>Read email</summary>
+
+        <pre>{{ email.body_text }}</pre>
+
+        @if (email.truncated) {
+          <p>The stored text is truncated.</p>
+        }
+      </details>
+
+      <button
+        type="button"
+        class="remove"
+        (click)="remove(email)"
+      >
+        Remove attachment
+      </button>
+    </article>
+  } @empty {
+    <p>{{ loading() ? 'Loading emails…' : 'No emails attached.' }}</p>
+  }
+
+  <page-controls
+    [total]="data().total"
+    [page]="data().page"
+    [size]="5"
+    (change)="load($event)"
+  />
+</section>

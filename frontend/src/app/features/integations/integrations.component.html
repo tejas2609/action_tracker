@@ -1,0 +1,100 @@
+<section
+  class="integrations-page"
+  aria-labelledby="integrations-title"
+>
+  <header>
+    <h1 id="integrations-title">Integrations</h1>
+    <p>Connect the accounts you use for work.</p>
+  </header>
+
+  @if (message()) {
+    <p
+      class="notice"
+      [class.error]="failed()"
+      role="status"
+    >
+      {{ message() }}
+    </p>
+  }
+
+  @if (data(); as gmail) {
+    <article
+      class="integration-card"
+      [attr.aria-busy]="working()"
+    >
+      <div class="card-heading">
+        <mat-icon
+          fontSet="material-icons-outlined"
+          aria-hidden="true"
+        >
+          mail
+        </mat-icon>
+
+        <div>
+          <h2>Gmail</h2>
+
+          <span
+            class="badge"
+            [class.connected]="gmail.connected"
+          >
+            {{ gmail.connected ? 'Connected' : 'Not connected' }}
+          </span>
+        </div>
+      </div>
+
+      <p>
+        Allow Action Tracker to read your Google profile and
+        received and sent emails.
+      </p>
+
+      <p class="permission-note">
+        Read access only. This connection cannot send, change,
+        or delete your emails. Email syncing will be added
+        in a later step.
+      </p>
+
+      @if (gmail.account; as account) {
+        <dl>
+          <dt>Account</dt>
+          <dd>{{ account.email }}</dd>
+
+          <dt>Name</dt>
+          <dd>{{ account.name || 'Not provided' }}</dd>
+        </dl>
+      }
+
+      @if (!gmail.configured) {
+        <p class="notice">
+          Gmail setup is required. Contact the application administrator.
+        </p>
+      }
+
+      <div class="actions">
+        @if (gmail.connected) {
+          <button
+            type="button"
+            class="secondary"
+            [disabled]="working() || !gmail.configured"
+            (click)="disconnect()"
+          >
+            {{ working() ? 'Please wait…' : 'Disconnect' }}
+          </button>
+        } @else {
+          <button
+            type="button"
+            [disabled]="working() || !gmail.configured"
+            (click)="connect()"
+          >
+            {{ working() ? 'Please wait…' : 'Connect Gmail' }}
+          </button>
+        }
+      </div>
+    </article>
+  } @else {
+    @if (working()) {
+      <p role="status">Loading integrations…</p>
+    } @else {
+      <button type="button" (click)="load()">Retry</button>
+    }
+  }
+</section>

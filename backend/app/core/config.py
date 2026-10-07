@@ -13,6 +13,16 @@ class Settings(BaseSettings):
     ai_timeout_seconds: float = 120
     ai_max_output_tokens: int = 8192
     ai_json_mode: bool = True
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
+    google_redirect_uri: str = "http://localhost:8000/api/integrations/gmail/callback"
+
+    frontend_url: str = "http://localhost:4200"
+
+    integration_token_key: str = ""
+
+    oauth_cookie_secure: bool = False
 
 
 settings = Settings()

@@ -1,0 +1,50 @@
+:host {
+  display: block;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+article {
+  padding: 16px;
+  margin: 14px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+small {
+  color: #64748b;
+}
+
+summary {
+  color: #4f46e5;
+  cursor: pointer;
+}
+
+pre {
+  padding: 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  line-height: 1.6;
+}
+
+button {
+  padding: 7px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  font: inherit;
+  cursor: pointer;
+
+  &.remove {
+    margin-top: 12px;
+    color: #b91c1c;
+  }
+}

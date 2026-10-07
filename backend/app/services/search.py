@@ -227,10 +227,9 @@ class CommitmentSearch:
         if owner_error:
             return self._empty(owner_error)
 
-        query = (
-            select(Commitment)
-            .join(Meeting, Commitment.meeting_id == Meeting.id)
-            .where(Meeting.organization_id == actor.organization_id)
+        query = select(Commitment).where(
+            Commitment.organization_id == actor.organization_id,
+            Commitment.status != "review",
         )
 
         if owner_id:

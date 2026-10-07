@@ -1,18 +1,152 @@
 <div class="eyebrow">PROMISES WITH CONTEXT</div>
+@if (session.user()?.is_manager) {
+  <nav class="segmented commitment-sections" aria-label="Commitment sections">
+    <button
+      [class.active]="view() !== 'team-missed'"
+      [attr.aria-pressed]="view() !== 'team-missed'"
+      (click)="setView('list')"
+    >
+      My commitments
+    </button>
+    <button
+      [class.active]="view() === 'team-missed'"
+      [attr.aria-pressed]="view() === 'team-missed'"
+      (click)="setView('team-missed')"
+    >
+      Team missed deadlines
+    </button>
+  </nav>
+}
 <div class="page-title">
   <div>
-    <h1>My commitments</h1>
-    <p>Your promises, blockers and the commitments that depend on you.</p>
+    <h1>
+      {{
+        view() === "team-missed" ? "Team missed deadlines" : "My commitments"
+      }}
+    </h1>
+    <p>
+      {{
+        view() === "team-missed"
+          ? "Active commitments with passed deadlines from your direct reports."
+          : "Your promises, blockers and the commitments that depend on you."
+      }}
+    </p>
   </div>
-  <div class="segmented">
-    <button [class.active]="view() === 'list'" (click)="view.set('list')">
-      List</button
-    ><button [class.active]="view() === 'graph'" (click)="view.set('graph')">
-      Graph
-    </button>
-  </div>
+  @if (view() !== "team-missed") {
+    <div class="segmented" role="group" aria-label="My commitments view">
+      <button
+        [class.active]="view() === 'list'"
+        [attr.aria-pressed]="view() === 'list'"
+        (click)="setView('list')"
+      >
+        List
+      </button>
+      <button
+        [class.active]="view() === 'graph'"
+        [attr.aria-pressed]="view() === 'graph'"
+        (click)="setView('graph')"
+      >
+        Graph
+      </button>
+      <button [class.active]="view() === 'review'" (click)="view.set('review')">
+        Review
+      </button>
+    </div>
+  }
 </div>
-@if (view() === "list") {
+@if (loadError()) {
+  <p role="alert">
+    {{ loadError() }} <button (click)="filterTeam()">Retry</button>
+  </p>
+}
+@if (view() === "team-missed" && session.user()?.is_manager) {
+  <div class="toolbar team-filters">
+    <label
+      >Search<input
+        placeholder="Title or owner"
+        [(ngModel)]="teamForm.q"
+        (ngModelChange)="filterTeam()"
+    /></label>
+    <label
+      >Owner<select
+        [(ngModel)]="teamForm.owner_id"
+        (ngModelChange)="filterTeam()"
+      >
+        <option value="">All team members</option>
+        @for (member of members(); track member.id) {
+          <option [value]="member.id">{{ member.name }}</option>
+        }
+      </select></label
+    >
+    <label
+      >Deadline from<input
+        type="date"
+        [(ngModel)]="teamForm.due_from"
+        (ngModelChange)="filterTeam()"
+    /></label>
+    <label
+      >Deadline to<input
+        type="date"
+        [(ngModel)]="teamForm.due_to"
+        (ngModelChange)="filterTeam()"
+    /></label>
+    <label
+      >Blockers<select
+        [(ngModel)]="teamForm.blocked"
+        (ngModelChange)="filterTeam()"
+      >
+        <option value="all">All</option>
+        <option value="yes">Waiting / blocked</option>
+        <option value="no">No blockers</option>
+      </select></label
+    >
+    <label
+      >Sort by<select
+        [(ngModel)]="teamForm.sort"
+        (ngModelChange)="filterTeam()"
+      >
+        <option value="due_date">Deadline</option>
+        <option value="owner">Owner</option>
+        <option value="title">Title</option>
+        <option value="progress">Progress</option>
+      </select></label
+    >
+    <label
+      >Order<select
+        [(ngModel)]="teamForm.direction"
+        (ngModelChange)="filterTeam()"
+      >
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+      </select></label
+    >
+    <label
+      >Rows per page<select
+        [(ngModel)]="teamForm.page_size"
+        (ngModelChange)="filterTeam()"
+      >
+        <option [ngValue]="10">10</option>
+        <option [ngValue]="25">25</option>
+        <option [ngValue]="50">50</option>
+      </select></label
+    >
+    <button (click)="resetTeam()">Reset filters</button>
+  </div>
+  <section [attr.aria-busy]="loading()">
+    @if (loading()) {
+      <p role="status">Loading team missed deadlines...</p>
+    } @else {
+      <p class="muted">{{ data().total }} commitments match your filters.</p>
+      <commitment-list [items]="data().items" />
+      <page-controls
+        [total]="data().total"
+        [page]="data().page"
+        [size]="data().page_size"
+        (change)="page.set($event)"
+      />
+    }
+  </section>
+} @else if (view() === "list") {
   <div class="toolbar">
     <input
       placeholder="Search your commitments"
@@ -35,7 +169,7 @@
       (change)="page.set($event)"
     />
   </section>
-} @else {
+} @else if (view() === "graph") {
   <section>
     <div class="section-heading">
       <h2>Your dependencies</h2>
@@ -46,4 +180,7 @@
     </div>
     <dependency-graph [items]="graph()" />
   </section>
+}
+@if (view() === "review") {
+  <email-review />
 }

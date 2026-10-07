@@ -1,9 +1,29 @@
 import { inject, Injectable } from "@angular/core";
 import { Api } from "../../core/api.service";
 import { Commitment, Page } from "../../core/models";
+export interface TeamDeadlineFilters {
+  q: string;
+  owner_id: string;
+  due_from: string;
+  due_to: string;
+  blocked: string;
+  sort: string;
+  direction: string;
+  page_size: number;
+}
+export interface TeamDeadlinePage extends Page<Commitment> {
+  members: { id: string; name: string }[];
+}
 @Injectable({ providedIn: "root" })
 export class CommitmentsService {
   private api = inject(Api);
+  teamMissed(page: number, filters: TeamDeadlineFilters): Promise<TeamDeadlinePage> {
+    const params = new URLSearchParams({ page: String(page) });
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== "") params.set(key, String(value));
+    }
+    return this.api.call("GET", "/team-missed-deadlines?" + params, undefined, true);
+  }
   list(page: number, q: string, state: string): Promise<Page<Commitment>> {
     const params = new URLSearchParams({ page: String(page), q, state });
     return this.api.call(
