@@ -1,89 +1,84 @@
 # Action Tracker
 
-Turn meeting discussions into clear commitments, accountable ownership, and measurable progress.
+### AI-powered commitment intelligence for meetings and email
 
-Action Tracker is a meeting-to-action management application built with Angular, FastAPI, and PostgreSQL. It uses AI to extract commitments from meeting transcripts and helps teams track deadlines, dependencies, blockers, and follow-ups.
+Action Tracker turns meeting discussions and incoming emails into clear, reviewable work. It identifies actions, owners, deadlines, and dependencies, helping teams track progress and preserve the context behind each commitment.
 
-## Overview
-
-Meeting notes often contain promises that are difficult to track after the discussion ends. Action Tracker connects those promises to responsible users, preserves their original context, and provides a shared view of what needs to happen next.
-
-For example, a statement such as:
-
-> “I’ll send Omar the access request today, before four.”
-
-can become a commitment with an owner, deadline, timing condition, and supporting source statement.
-
-The recorded action is requesting approval. It does not imply that approval has been granted.
+Built with Angular, FastAPI, PostgreSQL, and LangChain, the application combines structured AI extraction, natural-language search, Gmail integration, and human review.
 
 ## Features
 
 | Feature | Description |
 | --- | --- |
-| Meeting analysis | Extract commitments, owners, deadlines, and conditions from meeting transcripts. |
-| Commitment tracking | Monitor progress and manage active, completed, or cancelled commitments. |
-| Deadline dashboard | Review missed deadlines and upcoming tasks in separate paginated cards. |
-| Dependency visualization | Explore relationships between commitments and their prerequisites. |
-| Blocker analysis | Review recorded blockers and unresolved conditions affecting progress. |
-| Natural-language search | Find commitments using questions such as “What does Omar need from me?” |
-| Follow-up assistance | Generate contextual follow-up messages for commitments. |
-| User profiles | View and edit personal profile information. |
-| Team management | Managers can add unassigned users to their team and remove direct reports. |
-| Team missed deadlines | Managers see the five oldest missed deadlines on the dashboard and a paginated team table on Commitments, with search, owner, deadline range, blocker filters, and sorting. |
+| Meeting analysis | Extract commitments, owners, deadlines, conditions, and supporting statements from transcripts. |
+| Commitment tracking | Manage ownership, progress, and active, completed, or cancelled status. |
+| Deadline dashboard | View missed deadlines and upcoming tasks in separate paginated cards. |
+| Dependencies and blockers | Visualize task relationships and analyze blockers. |
+| Natural-language search | Find commitments using questions such as “What do I have to send to Omar?” |
+| Gmail integration | Connect Google accounts through OAuth with profile and read-only email permissions. |
+| Email review | Review, edit, accept, or reject tasks proposed from incoming emails. |
+| Related emails | Attach relevant emails to commitments with explanations and readable source text. |
+| Follow-up assistance | Generate contextual follow-up drafts. |
+| Profiles and teams | Edit profiles and manage reporting relationships and team membership. |
 
-## Application Workflow
+## Workflow
 
-1. Sign in using an existing user account.
-2. Submit a meeting transcript for analysis.
-3. Review the extracted commitments and their supporting statements.
-4. Update commitment details and track progress.
-5. Monitor deadlines, dependencies, and blockers.
-6. Search for relevant commitments and generate follow-ups.
+### Meeting commitments
 
-AI-generated results should be reviewed before being treated as confirmed meeting outcomes.
+1. Submit a meeting transcript.
+2. AI extracts commitments and supporting context.
+3. Review the findings before adding commitments.
+4. Track execution through deadlines, progress, and dependencies.
+
+### Incoming emails
+
+1. Connect Gmail through **Integrations**.
+2. The worker establishes a baseline and checks new incoming messages.
+3. AI compares each email with the application user's commitments.
+4. New assignments or requests become proposals under **Commitments → Review**.
+5. Clearly related emails become attachments to existing commitments.
+6. Unrelated email content is discarded.
+
+For example:
+
+- “Please send Omar the access request tomorrow” can become a review proposal.
+- “The access request deadline has been extended by three days” can attach to the existing commitment.
+
+Proposals require acceptance before becoming active. Attaching an email does not automatically change a commitment's deadline or status.
 
 ## Technology Stack
 
-| Layer | Technologies |
-| --- | --- |
-| Frontend | Angular 19, TypeScript, RxJS, SCSS |
-| Backend | Python, FastAPI, Pydantic |
-| Persistence | PostgreSQL, SQLAlchemy |
-| Database migrations | Alembic |
-| AI integration | LangChain, Groq |
+- **Frontend:** Angular 19, TypeScript, RxJS, Angular Material icons, SCSS
+- **Backend:** Python, FastAPI, Pydantic, SQLAlchemy
+- **Database:** PostgreSQL, Alembic
+- **AI:** LangChain, Groq
+- **Email:** Gmail API, Google OAuth, encrypted credential storage
 
-The backend keeps AI access behind a provider interface so that application services do not depend directly on a particular model SDK.
-
-## Architecture
-
-The frontend separates application layout, shared infrastructure, reusable UI components, and feature-specific code. Each Angular component keeps its TypeScript, HTML, and SCSS in separate files.
-
-The backend separates HTTP endpoints, validation schemas, business logic, database models, and AI integration.
+## Project Structure
 
 ```text
 backend/
-├── app/
-│   ├── ai/
-│   ├── api/
-│   ├── core/
-│   ├── models/
-│   ├── schemas/
-│   └── services/
-├── alembic.ini
-└── requirements.txt
+  app/
+    ai/             # AI provider integration
+    api/            # HTTP endpoints
+    core/           # Configuration, authentication, and database
+    models/         # Database models
+    repositories/   # Shared data access
+    schemas/        # Validation contracts
+    services/       # Business logic and AI workflows
+    email_worker.py # Background Gmail processing
+  migrations/
+  requirements.txt
 
 frontend/
-├── src/
-│   ├── app/
-│   │   ├── core/
-│   │   ├── features/
-│   │   ├── layout/
-│   │   └── shared/
-│   └── styles.scss
-├── angular.json
-├── package.json
-└── proxy.conf.json
+  src/app/
+    core/           # Shared services, guards, and interceptors
+    layout/         # Application shell, header, and sidebar
+    features/       # Feature components and services
+    shared/         # Reusable UI components
 ```
+
+Angular components use separate TypeScript, HTML, and SCSS files. Gmail fetching, AI classification, and review operations are separated into backend services.
 
 ## Prerequisites
 
@@ -91,7 +86,7 @@ frontend/
 - Python 3.11 or later
 - PostgreSQL
 - A Groq API key
-- Git
+- A Google Cloud project with Gmail API enabled
 
 ## Local Setup
 
@@ -102,39 +97,18 @@ git clone <repository-url>
 cd <repository-folder>
 ```
 
-### 2. Create the PostgreSQL database
+### 2. Create the database
 
-Connect with a PostgreSQL administrator account and run:
+Run using a PostgreSQL administrator account:
 
 ```sql
 CREATE USER tracker WITH PASSWORD 'tracker';
 CREATE DATABASE tracker OWNER tracker;
 ```
 
-These credentials are for local development. Use separate credentials and appropriate privileges for deployed environments.
+These credentials are intended for local development.
 
-### 3. Configure the backend
-
-Create `backend/.env`:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://tracker:tracker@localhost:5432/tracker
-
-DEMO_LOGIN_ENABLED=true
-CORS_ORIGINS=http://localhost:4200
-
-AI_PROVIDER=groq
-AI_BASE_URL=https://api.groq.com
-AI_MODEL=openai/gpt-oss-20b
-AI_API_KEY=your-groq-api-key
-AI_TIMEOUT_SECONDS=120
-AI_MAX_OUTPUT_TOKENS=8192
-AI_JSON_MODE=true
-```
-
-For the LangChain `ChatGroq` integration, use the host-only base URL shown above. Adding `/openai/v1` can cause a duplicated request path.
-
-### 4. Install backend dependencies
+### 3. Install backend dependencies
 
 ```bash
 cd backend
@@ -161,33 +135,90 @@ Install dependencies:
 python -m pip install -r requirements.txt
 ```
 
-The LangChain integration requires `langchain-core`, `langchain-groq`, and `langchain-openai`. If they have not yet been added to `requirements.txt`, install them:
+Ensure `requirements.txt` includes the LangChain integration packages and `cryptography`, alongside the existing backend dependencies.
 
-```bash
-python -m pip install langchain-core langchain-groq langchain-openai
+### 4. Configure environment variables
+
+Create `backend/.env`:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://tracker:tracker@localhost:5432/tracker
+DEMO_LOGIN_ENABLED=true
+CORS_ORIGINS=http://localhost:4200
+
+AI_PROVIDER=groq
+AI_BASE_URL=https://api.groq.com
+AI_MODEL=openai/gpt-oss-20b
+AI_API_KEY=your-groq-api-key
+AI_TIMEOUT_SECONDS=120
+AI_MAX_OUTPUT_TOKENS=8192
+AI_JSON_MODE=true
+
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/integrations/gmail/callback
+FRONTEND_URL=http://localhost:4200
+INTEGRATION_TOKEN_KEY=your-fernet-key
+OAUTH_COOKIE_SECURE=false
 ```
 
-### 5. Apply database migrations
+Generate the encryption key once:
 
-Run from the `backend` directory:
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Paste the result into `INTEGRATION_TOKEN_KEY`. Keep this key private and stable. Replacing it without migrating existing credentials prevents their decryption.
+
+The host-only Groq base URL shown above is for the LangChain `ChatGroq` integration.
+
+### 5. Configure Google OAuth
+
+In [Google Cloud Console](https://console.cloud.google.com/):
+
+1. Enable **Gmail API**.
+2. Configure Google Auth Platform branding.
+3. Select an **External** audience for personal Gmail accounts.
+4. Keep the application in **Testing** during development and add your test accounts.
+5. Add these scopes:
+
+```text
+openid
+https://www.googleapis.com/auth/userinfo.email
+https://www.googleapis.com/auth/userinfo.profile
+https://www.googleapis.com/auth/gmail.readonly
+```
+
+6. Create an OAuth client of type **Web application**.
+7. Register this exact redirect URI:
+
+```text
+http://localhost:8000/api/integrations/gmail/callback
+```
+
+8. Add the client ID and secret to `backend/.env`.
+
+### 6. Apply database migrations
+
+From the backend directory:
 
 ```bash
 alembic upgrade head
 ```
 
-### 6. Start the backend
+### 7. Start the backend
 
 ```bash
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000 --no-access-log
 ```
 
-Interactive API documentation is available at:
+API documentation: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-http://localhost:8000/docs
+The access-log option prevents development request logs from recording OAuth authorization codes in callback URLs.
 
-### 7. Start the frontend
+### 8. Start the frontend
 
-Open a second terminal from the repository root:
+In another terminal:
 
 ```bash
 cd frontend
@@ -195,43 +226,63 @@ npm install
 npm start
 ```
 
-Open the application at:
+Open [http://localhost:4200](http://localhost:4200).
 
-http://localhost:4200
+The Angular development proxy forwards `/api` requests to FastAPI. Use `localhost` consistently for the frontend and Google callback.
 
-The Angular development proxy forwards `/api` requests to the backend on port `8000`.
+### 9. Start the email worker
 
-## Development Authentication
+Activate the backend virtual environment in another terminal:
 
-The current login flow uses an existing user's name in lowercase as the username and `pass` as the shared development password.
+```bash
+cd backend
+python -m app.email_worker
+```
 
-For example:
+Connect Gmail through **Integrations**. Allow the worker to establish its baseline before sending a test email.
+
+The worker checks connected accounts on a repeating cycle with a 30-second pause after processing. It runs independently of the browser.
+
+Without the worker, use **Commitments → Review → Check Gmail** to process a batch manually.
+
+## Development Login
+
+Use an existing user's name in lowercase and the shared development password `pass`.
 
 ```text
 Username: ben
 Password: pass
 ```
 
-Registration is not currently part of the application.
+The connected Google account belongs to the application profile that authorized it. A different Google profile name can affect AI ownership interpretation unless supplied as an identity alias.
 
-This authentication flow is for development and demonstration. Production deployment requires individual password hashing, secure credential management, and an appropriate session lifecycle. Disabling demo login alone does not implement production authentication.
+Replace the shared login mechanism before enabling personal Gmail connections for real users.
 
-## Configuration Reference
+## Email Data Handling
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string. |
-| `DEMO_LOGIN_ENABLED` | Enables the development login flow. |
-| `CORS_ORIGINS` | Comma-separated allowed frontend origins. |
-| `AI_PROVIDER` | Selects the implemented AI provider. |
-| `AI_BASE_URL` | Provider endpoint configuration. |
-| `AI_MODEL` | Model identifier used for AI requests. |
-| `AI_API_KEY` | Provider API credential. |
-| `AI_TIMEOUT_SECONDS` | AI request timeout. |
-| `AI_MAX_OUTPUT_TOKENS` | Maximum generated output tokens per request. |
-| `AI_JSON_MODE` | Requests JSON-formatted model responses. |
+- Google access and refresh tokens are encrypted in PostgreSQL.
+- Google credentials are not returned to the frontend.
+- Unrelated email bodies are not retained.
+- Message IDs, mailbox identity, and processing outcomes are retained for duplicate prevention.
+- Review proposals retain derived task information and source metadata.
+- Original proposal emails are fetched from Gmail on demand.
+- Attached emails retain bounded plain-text content and an explanation.
+- Users can remove email attachments.
+- Email content required for classification is transmitted to the configured AI provider.
+- Gmail access is read-only. The application does not send, modify, or mark emails as read.
 
-Backend settings load configuration from environment variables and `backend/.env`. Restart the backend after changing configuration.
+## Current Limitations
+
+- Scanning starts from the first baseline; historical mailbox backfill is disabled.
+- Expired Gmail history causes a fresh baseline, skipping the expired gap.
+- Email detection uses polling rather than instant push notifications.
+- Matching uses thread associations and a bounded text-ranked shortlist, so some semantic relationships may be missed.
+- AI classification reads the first 12,000 characters of an email.
+- Stored email text is limited to 100,000 characters.
+- Binary email attachments are not analyzed.
+- AI interpretation requires review and is not guaranteed to be correct.
+- Email attachments do not automatically update deadlines or completion status.
+- Registration, scheduled reminders, and automatic escalations are not implemented.
 
 ## Build and Validation
 
@@ -242,8 +293,6 @@ cd frontend
 npm run build
 ```
 
-Build output is generated under `frontend/dist/`.
-
 Check database migration status:
 
 ```bash
@@ -251,54 +300,41 @@ cd backend
 alembic current
 ```
 
-Apply outstanding migrations:
+Validate these workflows against a development database and Google test account:
 
-```bash
-alembic upgrade head
-```
+- Meeting extraction and review
+- Search ownership and organization isolation
+- Gmail connection and disconnect
+- Email proposal acceptance and rejection
+- Related-email attachment and removal
+- Duplicate prevention during repeated scans
 
-Before releasing changes, verify login, meeting analysis, commitment updates, dashboard pagination, search ownership, and team management against a development database.
+## Deployment Notes
 
-## Deployment Considerations
-
-The application currently includes development authentication. Complete the authentication work before exposing it publicly.
-
-For deployment:
-
-- Serve the Angular production build through a static web server.
-- Route `/api` requests to FastAPI through a reverse proxy.
-- Run the backend without `--reload`.
+- Replace development authentication with secure individual credentials.
 - Use HTTPS and restrict allowed origins.
-- Store credentials in environment variables or a secret manager.
-- Apply database migrations as a controlled deployment step.
-- Configure database backups and application monitoring.
-- Keep transcripts, credentials, and sensitive record content out of logs.
-- Pin dependencies and maintain reproducible installation files.
+- Register production OAuth redirect URLs.
+- Set `OAUTH_COOKIE_SECURE=true`.
+- Run FastAPI and the email worker as separate managed processes.
+- Serve the Angular production build through a web server with `/api` routing.
+- Keep secrets out of version control.
+- Pin dependencies, back up PostgreSQL, and redact sensitive logs.
 
-The Angular development proxy is not included in the production build. Configure equivalent API routing in the deployed environment.
+The Angular development proxy is not included in production builds.
 
-## Troubleshooting
+Gmail read-only is a restricted scope. Public distribution requires Google verification subject to applicable exemptions. Server-side handling of restricted Gmail data can require a security assessment.
 
-| Problem | Check |
-| --- | --- |
-| Database connection fails | Confirm PostgreSQL is running and `DATABASE_URL` is correct. |
-| Database tables are missing | Run `alembic upgrade head` from `backend/`. |
-| AI authentication fails | Check `AI_API_KEY` and restart the backend. |
-| Groq reports an unknown request URL | Use `AI_BASE_URL=https://api.groq.com` with `ChatGroq`. |
-| AI output exceeds its token budget | Reduce transcript size or increase the configured output limit. |
-| Search returns no commitments | Check generated ownership filters and title/source-statement matching. |
-| Frontend API calls fail | Confirm the backend port and development proxy configuration. |
+External Testing applications requesting Gmail access receive refresh tokens that expire after seven days.
 
-## Current Limitations
+## References
 
-- Login uses a shared development password.
-- Registration is not implemented.
-- AI extraction and search interpretation can require correction.
-- Deadline cards display task status; automated reminder delivery and escalation scheduling are not yet implemented.
-- Follow-up generation does not imply that a message has been sent.
+- [Google OAuth web server flow](https://developers.google.com/identity/protocols/oauth2/web-server)
+- [Gmail permission scopes](https://developers.google.com/workspace/gmail/api/auth/scopes)
+- [Gmail history API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list)
+- [Refresh-token expiration](https://developers.google.com/identity/protocols/oauth2#expiration)
 
-## Contributing
+## Author
 
-Keep business logic in backend services and feature behavior in the relevant Angular feature folder. Reuse shared services and UI components where appropriate.
+**Tejas Murkya**
 
-Include database migrations with schema changes, document configuration changes, and describe validation performed in each pull request.
+[GitHub](https://github.com/tejas2609) · [LinkedIn](https://linkedin.com/in/tejas-murkya)
