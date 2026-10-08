@@ -1,12 +1,13 @@
 from fastapi import HTTPException
 from pydantic import ValidationError
-from app.models.entities import Meeting, Commitment, Dependency, Event
+from app.models.entities import Meeting, Commitment, Dependency
 from app.schemas.contracts import Findings
 from app.models.people import User
 from sqlalchemy import select
 import hashlib, json
 from app.services.intelligence import serialize, assess, descendants
 from app.services.search import CommitmentSearch
+from app.services.dependency_graph import DependencyGraph
 
 EXTRACT = """
 Extract work commitments from the numbered meeting transcript.
@@ -95,7 +96,7 @@ class Workflow:
 
     def snapshot(self):
         rows = {c.id: c for c in self.s.all(Commitment)}
-        edges = self.s.all(Dependency)
+        edges = DependencyGraph(self.s.all(Dependency))
         return rows, edges
 
     def risk_levels(self):
@@ -109,10 +110,13 @@ class Workflow:
             if id in before and before[id] != level:
                 self.s.event(c, "risk_change", before[id] + " → " + level)
 
-    def listing(self):
-        rows, edges = self.snapshot()
+    def listing(self, include_impact=True, snapshot=None):
+        rows, edges = snapshot or self.snapshot()
         return sorted(
-            [serialize(c, rows, edges) for c in rows.values()],
+            [
+                serialize(c, rows, edges, include_impact=include_impact)
+                for c in rows.values()
+            ],
             key=lambda c: (
                 {"high": 0, "medium": 1, "low": 2}[c["risk"]["level"]],
                 str(c["due_date"] or "9999"),
@@ -131,7 +135,13 @@ class Workflow:
                 for i, text in enumerate(lines, 1)
                 if text.strip()
             ],
-            "existing": self.listing(),
+            "existing": [
+                {
+                    k: item[k]
+                    for k in ("id", "title", "owner", "due_date", "condition", "status")
+                }
+                for item in self.listing()
+            ],
         }
 
         raw = await self.ai.json(EXTRACT, payload)
@@ -144,7 +154,6 @@ class Workflow:
                 "the conversation; do not invent commitments.",
                 payload,
             )
-        print("AI extraction result:", raw)
         try:
             findings = Findings.model_validate(raw)
         except ValidationError as e:
@@ -356,9 +365,7 @@ class Workflow:
         if not c:
             raise HTTPException(404, "Commitment not found")
         history = [
-            {"kind": e.kind, "message": e.message}
-            for e in self.s.all(Event)
-            if e.commitment_id == id
+            {"kind": e.kind, "message": e.message} for e in self.s.events_for(id)
         ]
         raw = await self.ai.json(
             'Draft a concise respectful contextual follow-up. Address the supplied recipient if present, otherwise the owner. Include the exact promise, deadline, blocker and actionable next step; do not invent dates or facts. Return {"message":"draft"}. Do not send anything.',

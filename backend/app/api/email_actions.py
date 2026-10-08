@@ -1,7 +1,4 @@
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
-from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 import httpx
@@ -15,19 +12,7 @@ from app.services import email_actions as service
 router = APIRouter(prefix="/api", tags=["email actions"])
 
 
-class AcceptProposal(BaseModel):
-    title: str = Field(min_length=3, max_length=500)
-    due_date: date | None = None
-
-    @field_validator("title")
-    @classmethod
-    def clean_title(cls, value):
-        value = value.strip()
-
-        if len(value) < 3:
-            raise ValueError("Enter a title of at least three characters.")
-
-        return value
+from app.schemas.email_actions import AcceptProposal
 
 
 @router.post("/integrations/gmail/scan")

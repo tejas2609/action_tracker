@@ -1,14 +1,11 @@
 from datetime import date
-from app.models.entities import Commitment, Dependency
+from app.services.dependency_graph import DependencyGraph
 
 
 def assess(c, rows, edges, today=None):
     today = today or date.today()
-    upstream = [
-        rows[e.prerequisite_id]
-        for e in edges
-        if e.commitment_id == c.id and e.prerequisite_id in rows
-    ]
+    graph = edges if isinstance(edges, DependencyGraph) else DependencyGraph(edges)
+    upstream = [rows[id] for id in graph.upstream.get(c.id, ()) if id in rows]
     pending = [x for x in upstream if x.status != "completed"]
     reasons = []
     if c.status in ("completed", "cancelled"):
@@ -66,18 +63,12 @@ def assess(c, rows, edges, today=None):
 
 
 def descendants(id, edges):
-    seen = set()
-    stack = [id]
-    while stack:
-        n = stack.pop()
-        for e in edges:
-            if e.prerequisite_id == n and e.commitment_id not in seen:
-                seen.add(e.commitment_id)
-                stack.append(e.commitment_id)
-    return seen
+    graph = edges if isinstance(edges, DependencyGraph) else DependencyGraph(edges)
+    return graph.descendants(id)
 
 
-def serialize(c, rows, edges):
+def serialize(c, rows, edges, include_impact=True):
+    edges = edges if isinstance(edges, DependencyGraph) else DependencyGraph(edges)
     fields = [
         "id",
         "owner_id",
@@ -95,6 +86,6 @@ def serialize(c, rows, edges):
     return {
         **{k: getattr(c, k) for k in fields},
         "risk": assess(c, rows, edges),
-        "dependencies": [e.prerequisite_id for e in edges if e.commitment_id == c.id],
-        "impact": list(descendants(c.id, edges)),
+        "dependencies": list(edges.upstream.get(c.id, ())),
+        "impact": list(descendants(c.id, edges)) if include_impact else [],
     }

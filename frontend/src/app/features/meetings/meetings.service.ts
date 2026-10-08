@@ -17,11 +17,19 @@ export class MeetingsService {
   list(): Promise<Meeting[]> {
     return this.api.call("GET", "/meetings");
   }
-  create(title: string, heldOn: string, transcript: string): Promise<Meeting> {
+  create(
+    title: string,
+    heldOn: string,
+    transcript: string,
+    visibility: "public" | "private",
+    participantIds: string[],
+  ): Promise<Meeting> {
     return this.api.call("POST", "/meetings", {
       title,
       held_on: heldOn,
       transcript,
+      visibility,
+      participant_ids: participantIds,
     });
   }
   analyze(id: string): Promise<Meeting> {

@@ -1,0 +1,77 @@
+:host {
+  display: block;
+  margin-top: 28px;
+}
+
+.access-section {
+  padding: 24px;
+  margin-bottom: 24px;
+  background: white;
+  border: 1px solid var(--line, #dce5df);
+  border-radius: 14px;
+}
+
+.access-heading,
+.access-row,
+.access-pagination,
+.request-controls,
+.access-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.access-search {
+  margin: 20px 0;
+
+  input {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.access-row {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line, #dce5df);
+
+  small {
+    display: block;
+    margin-top: 6px;
+    color: var(--muted, #64748b);
+  }
+}
+
+.request-controls {
+  flex-wrap: wrap;
+
+  input {
+    min-width: 180px;
+  }
+}
+
+.access-pagination {
+  margin-top: 20px;
+}
+
+.access-status {
+  font-size: 13px;
+  color: var(--muted, #64748b);
+}
+
+@media (max-width: 640px) {
+  .access-section {
+    padding: 16px;
+  }
+
+  .access-heading,
+  .access-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .access-pagination,
+  .request-controls {
+    flex-wrap: wrap;
+  }
+}

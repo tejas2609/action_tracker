@@ -2,6 +2,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    log_level: str = "INFO"
+    database_pool_size: int = 5
+    database_max_overflow: int = 10
+    database_pool_timeout: int = 30
     database_url: str = "postgresql+psycopg://tracker:tracker@localhost:5432/tracker"
     demo_login_enabled: bool = True
     ai_provider: str = "groq"

@@ -21,9 +21,9 @@
     <h2>Organization directory</h2>
     <span class="badge">{{ visible().length }} people</span>
   </div>
-  <div class="people-grid">
+  <ul class="people-list" aria-label="Organization directory">
     @for (u of visible(); track u.id) {
-      <article class="person-card">
+      <li class="person-row">
         <div class="person-heading">
           <span class="avatar large">{{ u.name.slice(0, 1) }}</span>
           <div>
@@ -31,17 +31,17 @@
             ><small>{{ u.role }}</small>
           </div>
         </div>
-        <span class="badge">{{ u.team }}</span>
-        <p class="muted">{{ u.email }}</p>
+        <span class="person-email muted">{{ u.email }}</span>
+        <span class="person-team badge">{{ u.team }}</span>
         <button
           [disabled]="u.id === session.user()?.id"
           (click)="panels.chat(u)"
         >
           {{ u.id === session.user()?.id ? "You" : "Message →" }}
         </button>
-      </article>
+      </li>
     } @empty {
-      <div class="empty">No people match these filters.</div>
+      <li class="empty">No people match these filters.</li>
     }
-  </div>
+  </ul>
 </section>

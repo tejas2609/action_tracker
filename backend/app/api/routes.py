@@ -1,14 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from datetime import date
 from typing import Literal
-from sqlalchemy.orm import Session
-from app.core.database import get_db
-from app.core.auth import current_user
-from app.ai.provider import get_provider
-from app.repositories.store import Store
-from app.services.workflow import Workflow
-from app.models.entities import Meeting, Commitment, Event, Dependency
-from app.models.people import User
 from app.schemas.contracts import (
     MeetingInput,
     Review,
@@ -17,32 +9,20 @@ from app.schemas.contracts import (
     SearchInput,
     FollowupInput,
 )
-from app.services.intelligence import serialize
-from app.services.team_deadlines import team_missed_deadlines
+from app.services import commitment_api as operations
+from app.api.dependencies import service
+from app.schemas.contracts import ManualCommitmentInput
+from app.services.commitment_api import (
+    create_manual_commitment,
+    meeting_options,
+)
 
 router = APIRouter(prefix="/api")
 
 
-def service(
-    db: Session = Depends(get_db),
-    ai=Depends(get_provider),
-    actor: User = Depends(current_user),
-):
-    return Workflow(Store(db, actor), ai)
-
-
-def editable(s, id):
-    c = s.s.get(Commitment, id)
-    if c.owner_id != s.s.actor.id and s.s.actor.role != "Product Manager":
-        raise HTTPException(
-            403, "Only the owner or a Product Manager can edit this commitment."
-        )
-    return c
-
-
 @router.get("/health")
 def health():
-    return {"status": "ok", "version": "2.0.0"}
+    return operations.health()
 
 
 @router.get("/commitments")
@@ -54,35 +34,22 @@ def commitments(
     page_size: int = Query(10, ge=1, le=100),
     s=Depends(service),
 ):
-    if scope not in ("mine", "organization"):
-        raise HTTPException(422, "Invalid scope")
-    rows = [
-        c
-        for c in s.listing()
-        if scope == "organization" or c["owner_id"] == s.s.actor.id
-    ]
-    rows = [
-        c
-        for c in rows
-        if q.casefold() in (c["title"] + " " + c["owner"]).casefold()
-        and (
-            state == "all"
-            or c["status"] == state
-            or c["risk"]["level"] == state
-            or c["risk"]["state"] == state
-            or state == "overdue"
-            and c["risk"].get("overdue")
-            or state == "attention"
-            and c["status"] == "active"
-            and (c["risk"]["level"] != "low" or c["risk"].get("overdue"))
-        )
-    ]
-    return {
-        "items": rows[(page - 1) * page_size : page * page_size],
-        "total": len(rows),
-        "page": page,
-        "page_size": page_size,
-    }
+    return operations.commitments(
+        scope=scope, q=q, state=state, page=page, page_size=page_size, s=s
+    )
+
+
+@router.post("/commitments", status_code=201)
+def create_commitment(
+    body: ManualCommitmentInput,
+    s=Depends(service),
+):
+    return create_manual_commitment(s, body)
+
+
+@router.get("/meeting-options")
+def list_meeting_options(s=Depends(service)):
+    return meeting_options(s.s)
 
 
 @router.get("/team-missed-deadlines")
@@ -98,17 +65,17 @@ def team_deadlines(
     direction: Literal["asc", "desc"] = "asc",
     s=Depends(service),
 ):
-    return team_missed_deadlines(
-        s,
-        page,
-        page_size,
-        q,
-        owner_id,
-        due_from,
-        due_to,
-        blocked,
-        sort,
-        direction,
+    return operations.team_deadlines(
+        page=page,
+        page_size=page_size,
+        q=q,
+        owner_id=owner_id,
+        due_from=due_from,
+        due_to=due_to,
+        blocked=blocked,
+        sort=sort,
+        direction=direction,
+        s=s,
     )
 
 
@@ -119,207 +86,71 @@ def dashboard(
     page_size: int = Query(5, ge=1, le=100),
     s=Depends(service),
 ):
-    from datetime import date
-
-    # Keep the dashboard scoped to the signed-in user's commitments.
-    mine = [c for c in s.listing() if c["owner_id"] == s.s.actor.id]
-    active = [c for c in mine if c["status"] == "active"]
-
-    # Matches the date convention currently used by your risk engine.
-    today = date.today()
-
-    missed = [c for c in active if c["due_date"] is not None and c["due_date"] < today]
-
-    upcoming = [
-        c for c in active if c["due_date"] is not None and c["due_date"] >= today
-    ]
-
-    # Stable ordering: earliest deadline first.
-    missed.sort(key=lambda c: (c["due_date"], c["id"]))
-    upcoming.sort(key=lambda c: (c["due_date"], c["id"]))
-
-    def paginate(rows, requested_page):
-        total = len(rows)
-        last_page = max(1, (total + page_size - 1) // page_size)
-        actual_page = min(requested_page, last_page)
-        start = (actual_page - 1) * page_size
-
-        return {
-            "items": rows[start : start + page_size],
-            "total": total,
-            "page": actual_page,
-            "page_size": page_size,
-        }
-
-    return {
-        "metrics": {
-            "total": len(mine),
-            "active": len(active),
-            "on_track": sum(c["risk"]["level"] == "low" for c in active),
-            "at_risk": sum(c["risk"]["level"] != "low" for c in active),
-            "blocked": sum(c["risk"]["state"] == "waiting" for c in active),
-            "overdue": len(missed),
-            "completed": sum(c["status"] == "completed" for c in mine),
-        },
-        "missed": paginate(missed, missed_page),
-        "upcoming": paginate(upcoming, upcoming_page),
-        "team_missed": (
-            team_missed_deadlines(s, page_size=5) if s.s.actor.is_manager else None
-        ),
-    }
+    return operations.dashboard(
+        missed_page=missed_page, upcoming_page=upcoming_page, page_size=page_size, s=s
+    )
 
 
 @router.get("/graph")
 def graph(mode: str = "immediate", s=Depends(service)):
-    if mode not in ("immediate", "connected"):
-        raise HTTPException(422, "Invalid graph mode")
-    all = s.listing()
-    mine = {c["id"] for c in all if c["owner_id"] == s.s.actor.id}
-    ids = set(mine)
-    edges = [(pre, c["id"]) for c in all for pre in c["dependencies"]]
-    if mode == "immediate":
-        for a, b in edges:
-            if a in mine or b in mine:
-                ids.update((a, b))
-    else:
-        pending = list(ids)
-        adj = {}
-        for a, b in edges:
-            adj.setdefault(a, set()).add(b)
-            adj.setdefault(b, set()).add(a)
-        while pending:
-            for id in adj.get(pending.pop(), ()):
-                if id not in ids:
-                    ids.add(id)
-                    pending.append(id)
-    items = [{**c, "is_mine": c["id"] in mine} for c in all if c["id"] in ids]
-    return {"items": items, "mine_ids": sorted(mine), "mode": mode}
+    return operations.graph(mode=mode, s=s)
 
 
 @router.get("/meetings")
 def meetings(s=Depends(service)):
-    return sorted(s.s.all(Meeting), key=lambda m: m.held_on, reverse=True)
+    return operations.meetings(s=s)
 
 
 @router.post("/meetings", status_code=201)
 def create_meeting(body: MeetingInput, s=Depends(service)):
-    m = s.s.save(
-        Meeting(**body.model_dump(), organization_id=s.s.actor.organization_id)
-    )
-    s.s.db.commit()
-    return m
+    return operations.create_meeting(body=body, s=s)
 
 
 @router.post("/meetings/{id}/analyze")
 async def analyze(id: str, s=Depends(service)):
-    return await s.analyze(id)
+    return await operations.analyze(id=id, s=s)
 
 
 @router.post("/meetings/{id}/review")
 def review(id: str, body: Review, s=Depends(service)):
-    return s.review(id, body)
+    return operations.review(id=id, body=body, s=s)
 
 
 @router.get("/commitments/{id}")
 def detail(id: str, s=Depends(service)):
-    c = s.s.get(Commitment, id)
-    rows, edges = s.snapshot()
-    result = serialize(c, rows, edges)
-    result["timeline"] = sorted(
-        [e for e in s.s.all(Event) if e.commitment_id == id], key=lambda e: e.created_at
-    )
-    result["meeting"] = s.s.get(Meeting, c.meeting_id) if c.meeting_id else None
-    _, fingerprint = s.blocker_context(id)
-    result["analysis"] = {
-        "explanation": c.analysis_text,
-        "next_action": c.analysis_next,
-        "stale": c.analysis_hash != fingerprint,
-        "revision": fingerprint,
-    }
-    ids = {id}
-    pending = [id]
-    while pending:
-        n = pending.pop()
-        for e in edges:
-            if n in (e.commitment_id, e.prerequisite_id):
-                other = e.prerequisite_id if n == e.commitment_id else e.commitment_id
-                if other not in ids:
-                    ids.add(other)
-                    pending.append(other)
-    result["related"] = [
-        serialize(x, rows, edges) for x in rows.values() if x.id in ids
-    ]
-    result["can_edit"] = (
-        c.owner_id == s.s.actor.id or s.s.actor.role == "Product Manager"
-    )
-    return result
+    return operations.detail(id=id, s=s)
 
 
 @router.patch("/commitments/{id}")
 def update(id: str, body: Update, s=Depends(service)):
-    editable(s, id)
-    return s.update(id, body)
+    return operations.update(id=id, body=body, s=s)
 
 
 @router.post("/commitments/{id}/dependencies", status_code=201)
 def edge(id: str, body: EdgeInput, s=Depends(service)):
-    editable(s, id)
-    s.edge(id, body.prerequisite_id)
-    return {"ok": True}
+    return operations.edge(id=id, body=body, s=s)
 
 
 @router.delete("/commitments/{id}/dependencies/{pre}")
 def remove_edge(id: str, pre: str, s=Depends(service)):
-    c = editable(s, id)
-    s.s.get(Commitment, pre)
-    e = s.s.db.get(Dependency, (id, pre))
-    if e:
-        before = s.risk_levels()
-        s.s.db.delete(e)
-        s.s.db.flush()
-        s.s.event(c, "dependency_removed", "Removed prerequisite " + pre)
-        s.audit_risks(before)
-        s.s.db.commit()
-    return {"ok": True}
+    return operations.remove_edge(id=id, pre=pre, s=s)
 
 
 @router.post("/commitments/{id}/dependencies/{pre}/replace")
 def replace_edge(id: str, pre: str, body: EdgeInput, s=Depends(service)):
-    c = editable(s, id)
-    s.s.get(Commitment, pre)
-    s.s.get(Commitment, body.prerequisite_id)
-    old = s.s.db.get(Dependency, (id, pre))
-    if not old:
-        raise HTTPException(404, "Dependency not found")
-    if pre == body.prerequisite_id:
-        return {"ok": True}
-    before = s.risk_levels()
-    s.s.db.delete(old)
-    s.s.db.flush()
-    # edge commits both changes transactionally; get_db rolls back if cycle check fails.
-    s.s.event(
-        c, "dependency_replaced", "Replaced " + pre + " with " + body.prerequisite_id
-    )
-    s.edge(id, body.prerequisite_id)
-    return {"ok": True}
+    return operations.replace_edge(id=id, pre=pre, body=body, s=s)
 
 
 @router.post("/commitments/{id}/followup")
 async def followup(id: str, body: FollowupInput | None = None, s=Depends(service)):
-    recipient = None
-    if body and body.recipient_id:
-        u = s.s.db.get(User, body.recipient_id)
-        if not u or not u.active or u.organization_id != s.s.actor.organization_id:
-            raise HTTPException(404, "Recipient not found")
-        recipient = {"id": u.id, "name": u.name}
-    return await s.followup(id, recipient)
+    return await operations.followup(id=id, body=body, s=s)
 
 
 @router.post("/commitments/{id}/analysis")
 async def blocker_analysis(id: str, s=Depends(service)):
-    return await s.blocker_analysis(id)
+    return await operations.blocker_analysis(id=id, s=s)
 
 
 @router.post("/search")
 async def search(body: SearchInput, s=Depends(service)):
-    return await s.search(body.query)
+    return await operations.search(body=body, s=s)

@@ -14,15 +14,42 @@ export interface TeamDeadlineFilters {
 export interface TeamDeadlinePage extends Page<Commitment> {
   members: { id: string; name: string }[];
 }
+export interface MeetingOption {
+  id: string;
+  title: string;
+  held_on: string;
+  people: string[];
+}
+
+export interface ManualCommitmentInput {
+  title: string;
+  description: string;
+  due_date: string | null;
+  progress: number;
+  condition: string;
+  condition_met: boolean;
+  blocker: string;
+  meeting_id: string | null;
+  prerequisite_ids: string[];
+}
+
 @Injectable({ providedIn: "root" })
 export class CommitmentsService {
   private api = inject(Api);
-  teamMissed(page: number, filters: TeamDeadlineFilters): Promise<TeamDeadlinePage> {
+  teamMissed(
+    page: number,
+    filters: TeamDeadlineFilters,
+  ): Promise<TeamDeadlinePage> {
     const params = new URLSearchParams({ page: String(page) });
     for (const [key, value] of Object.entries(filters)) {
       if (value !== "") params.set(key, String(value));
     }
-    return this.api.call("GET", "/team-missed-deadlines?" + params, undefined, true);
+    return this.api.call(
+      "GET",
+      "/team-missed-deadlines?" + params,
+      undefined,
+      true,
+    );
   }
   list(page: number, q: string, state: string): Promise<Page<Commitment>> {
     const params = new URLSearchParams({ page: String(page), q, state });
@@ -92,5 +119,12 @@ export class CommitmentsService {
       if (rows.length >= result.total || !result.items.length) return rows;
       page++;
     }
+  }
+  create(body: ManualCommitmentInput): Promise<Commitment> {
+    return this.api.call("POST", "/commitments", body);
+  }
+
+  meetingOptions(): Promise<MeetingOption[]> {
+    return this.api.call("GET", "/meeting-options", undefined, true);
   }
 }

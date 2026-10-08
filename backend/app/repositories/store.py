@@ -2,6 +2,10 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models.entities import Commitment, Meeting, Dependency, Event
+from app.services.meeting_access_policy import (
+    readable_condition,
+    require_read,
+)
 
 
 class Store:
@@ -17,7 +21,7 @@ class Store:
 
             if model is Meeting:
                 query = query.where(
-                    Meeting.organization_id == organization_id,
+                    readable_condition(self.actor),
                 )
 
             elif model is Commitment:
@@ -47,6 +51,12 @@ class Store:
         return list(self.db.scalars(query))
 
     def get(self, model, id):
+        if model is Meeting and self.actor:
+            return require_read(
+                self.db,
+                self.actor,
+                id,
+            )
         row = self.db.get(model, id)
 
         if row is None:
@@ -82,6 +92,16 @@ class Store:
                 raise HTTPException(404, "Record not found")
 
         return row
+
+    def events_for(self, commitment_id):
+        self.get(Commitment, commitment_id)
+        return list(
+            self.db.scalars(
+                select(Event)
+                .where(Event.commitment_id == commitment_id)
+                .order_by(Event.created_at, Event.id)
+            )
+        )
 
     def event(self, c, kind, message, meeting_id=None):
         self.db.add(

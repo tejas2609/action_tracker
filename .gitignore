@@ -5,3 +5,6 @@ dist/
 __pycache__/
 .pytest_cache/
 *.db
+*.zip
+.angular/
+backend_original/

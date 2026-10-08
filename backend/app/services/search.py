@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 
-from app.models.entities import Commitment, Meeting
+from app.models.entities import Commitment
 from app.models.people import User
 from app.schemas.search import SearchFilters
 

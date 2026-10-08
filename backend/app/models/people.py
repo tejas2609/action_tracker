@@ -81,3 +81,13 @@ class Attachment(Base):
     storage_key: Mapped[str] = mapped_column(String(500))
     uploaded_by: Mapped[str] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+from sqlalchemy import Index
+
+Index(
+    "ix_messages_conversation_created_id",
+    Message.conversation_id,
+    Message.created_at,
+    Message.id,
+)

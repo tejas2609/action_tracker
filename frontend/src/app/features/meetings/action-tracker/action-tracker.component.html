@@ -1,0 +1,219 @@
+<section class="agenda-tracker">
+  <div class="tracker-heading">
+    <div>
+      <h2>Action tracker</h2>
+      <p>
+        Track each meeting agenda through its team's commitments.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      [disabled]="loading()"
+      (click)="refresh()"
+    >
+      Refresh
+    </button>
+  </div>
+
+  <div
+    class="tracker-tabs"
+    role="group"
+    aria-label="Agenda status"
+  >
+    <button
+      type="button"
+      [class.active]="tab() === 'active'"
+      [attr.aria-pressed]="tab() === 'active'"
+      (click)="changeTab('active')"
+    >
+      Active agendas
+    </button>
+
+    <button
+      type="button"
+      [class.active]="tab() === 'completed'"
+      [attr.aria-pressed]="tab() === 'completed'"
+      (click)="changeTab('completed')"
+    >
+      Completed agendas
+    </button>
+  </div>
+
+  @if (error()) {
+    <p role="alert">{{ error() }}</p>
+  }
+
+  @if (loading()) {
+    <p role="status">Loading agendas...</p>
+  }
+
+  @for (agenda of items(); track agenda.id) {
+    <button
+      type="button"
+      class="agenda-row"
+      [class.selected]="selectedId() === agenda.id"
+      (click)="open(agenda.id)"
+    >
+      <span>
+        <strong>{{ agenda.title }}</strong>
+        <small>
+          {{ agenda.held_on }}
+          · {{ agenda.agenda_state.replace("_", " ") }}
+        </small>
+      </span>
+
+      <span class="agenda-progress">
+        <span>
+          {{ agenda.progress }}%
+          · {{ agenda.completed }}/{{ agenda.total }} completed
+        </span>
+
+        <progress
+          [value]="agenda.progress"
+          max="100"
+          [attr.aria-label]="agenda.title + ' progress'"
+        ></progress>
+      </span>
+    </button>
+  } @empty {
+    @if (!loading()) {
+      <p>No {{ tab() }} agendas.</p>
+    }
+  }
+
+  <div class="tracker-pagination">
+    <button
+      type="button"
+      [disabled]="page() === 1 || loading()"
+      (click)="page.set(page() - 1)"
+    >
+      Previous
+    </button>
+
+    <span>
+      Page {{ page() }} · {{ total() }} agendas
+    </span>
+
+    <button
+      type="button"
+      [disabled]="page() * 10 >= total() || loading()"
+      (click)="page.set(page() + 1)"
+    >
+      Next
+    </button>
+  </div>
+
+  @if (detailLoading()) {
+    <p role="status">Loading agenda analysis...</p>
+  }
+
+  @if (detailError()) {
+    <p role="alert">{{ detailError() }}</p>
+  }
+
+  @if (selected(); as agenda) {
+    <article class="agenda-detail">
+      <h3>
+        {{ agenda.title }} · {{ agenda.progress }}% complete
+      </h3>
+
+      <h4>What to do next</h4>
+
+      @for (line of agenda.next_steps; track $index) {
+        <p>{{ line }}</p>
+      }
+
+      <h4>Next three team commitments</h4>
+
+      <p class="hint">
+        Priority order by readiness, then deadline.
+        Dates are deadlines, not predicted completion times.
+      </p>
+
+      <ol class="next-timeline">
+        @for (task of agenda.next_actions; track task.id) {
+          <li [class.waiting]="!task.ready">
+            <span class="timeline-dot">
+              {{ $index + 1 }}
+            </span>
+
+            <div>
+              <strong>{{ task.title }}</strong>
+
+              <p>
+                {{ task.owner }}
+                · {{ task.due_date || "No deadline" }}
+              </p>
+
+              <span class="status">
+                {{ task.ready ? "Ready to work" : "Needs attention" }}
+              </span>
+
+              @for (reason of task.reasons; track $index) {
+                <p>{{ reason }}</p>
+              }
+
+              <a [routerLink]="['/commitments', task.id]">
+                Open commitment
+              </a>
+            </div>
+          </li>
+        } @empty {
+          <li>No outstanding commitments.</li>
+        }
+      </ol>
+
+      <h4>Dependency analysis</h4>
+
+      <div
+        class="tracker-tabs"
+        role="group"
+        aria-label="Dependency view"
+      >
+        <button
+          type="button"
+          [class.active]="mode() === 'within'"
+          [attr.aria-pressed]="mode() === 'within'"
+          (click)="mode.set('within')"
+        >
+          Within this meeting (Inter)
+        </button>
+
+        <button
+          type="button"
+          [class.active]="mode() === 'across'"
+          [attr.aria-pressed]="mode() === 'across'"
+          (click)="mode.set('across')"
+        >
+          Across meetings (Intra)
+        </button>
+      </div>
+
+      @if (mode() === "within") {
+        <app-agenda-graph [graph]="agenda.within" />
+      } @else {
+        @for (
+          external of agenda.external_meetings;
+          track external.meeting_id
+        ) {
+          <p>
+            <strong>{{ external.title }}</strong>:
+            {{ external.coverage }} dependency
+            ({{ external.affected_commitments }}/{{ external.total_commitments }}
+            commitments affected;
+            {{ external.pending_prerequisites }}
+            unfinished external prerequisites).
+          </p>
+        } @empty {
+          <p>
+            No dependencies on another meeting agenda.
+            Unassigned external commitments may still appear below.
+          </p>
+        }
+
+        <app-agenda-graph [graph]="agenda.across" />
+      }
+    </article>
+  }
+</section>

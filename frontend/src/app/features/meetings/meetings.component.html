@@ -1,164 +1,359 @@
 <div class="eyebrow">CONVERSATION → COMMITMENT</div>
-<h1>Meetings</h1>
-<p>Capture genuine promises. Leave the rest as conversation.</p>
-<div class="two-col">
-  <section>
-    <h2>Add a conversation</h2>
-    <label
-      >Meeting title<input
-        [(ngModel)]="title"
-        placeholder="Launch readiness / weekly sync" /></label
-    ><label>Meeting date<input type="date" [(ngModel)]="heldOn" /></label
-    ><label
-      >Transcript<textarea
-        rows="10"
-        [(ngModel)]="transcript"
-        placeholder="Sarah: I'll finish the QA report by Friday.
-Alex: I'll deploy once Sarah approves the build."
-      ></textarea></label
-    ><button
-      class="primary"
-      [disabled]="api.busy() || !title || transcript.length < 10"
-      (click)="create()"
-    >
-      Save & analyze transcript</button
-    ><button (click)="example()">Use example transcript</button>
-  </section>
-  <section>
-    <h2>Meeting history</h2>
-    @for (m of meetings(); track m.id) {
-      <button class="meeting-row" (click)="select(m)">
-        <span
-          ><strong>{{ m.title }}</strong
-          ><small>{{ m.held_on }}</small></span
-        ><span class="badge">{{ m.state }}</span>
-      </button>
-    } @empty {
-      <div class="empty">No meetings yet. Start with a transcript.</div>
-    }
-  </section>
+
+<div class="meetings-page-heading">
+  <div>
+    <h1>Meetings</h1>
+    <p>Capture genuine promises. Leave the rest as conversation.</p>
+  </div>
+
+  <button
+    type="button"
+    class="primary"
+    [disabled]="creating() || analyzing() || reviewSaving()"
+    (click)="openCreate()"
+  >
+    + Add meeting
+  </button>
 </div>
-@if (selected(); as m) {
-  <section>
-    <div class="section-heading">
-      <div>
-        <h2>{{ m.title }}</h2>
-        <p>Review the interpretation before creating commitments.</p>
+
+<section>
+  <h2>Meeting history</h2>
+
+  @for (m of meetings(); track m.id) {
+    <div class="meeting-history-row">
+      <div class="meeting-history-details">
+        <strong>{{ m.title }}</strong>
+        <small>{{ m.held_on }}</small>
       </div>
-      <button [disabled]="api.busy()" (click)="previewDelete(m)">
-        Delete meeting
-      </button>
-      @if (m.state === "draft") {
-        <button class="primary" [disabled]="api.busy()" (click)="analyze(m.id)">
-          Analyze
-        </button>
-      }
-    </div>
-    @if (deletion(); as d) {
-      <div role="alert" class="local-style-1">
-        <h3>Delete {{ d.meeting_title }}?</h3>
-        <p>
-          This permanently deletes this meeting and
-          {{ d.commitment_count }} commitments, including all promises connected
-          through upstream or downstream dependencies.
-        </p>
-        <p>
-          {{ d.dependency_count }} dependency links and
-          {{ d.event_count }} timeline events will be removed.
-        </p>
-        @if (d.other_meetings.length) {
-          <p><strong>Promises from other meetings are affected:</strong></p>
-          <ul>
-            @for (other of d.other_meetings; track other.id) {
-              <li>{{ other.title }}</li>
-            }
-          </ul>
-          <p>The other meetings themselves remain.</p>
-        }
-        <ul>
-          @for (c of d.commitments; track c.id) {
-            <li>
-              {{ c.owner }} · {{ c.title }}
-              {{
-                c.direct
-                  ? "(related to this meeting)"
-                  : "(linked dependency chain)"
-              }}
-            </li>
-          }
-        </ul>
+
+      <div class="meeting-history-actions">
+        <span class="badge">{{ m.state }}</span>
+
         <button
-          class="local-style-2"
-          [disabled]="api.busy()"
-          (click)="confirmDelete()"
+          type="button"
+          [disabled]="creating() || analyzing() || reviewSaving()"
+          (click)="openReview(m)"
         >
-          Permanently delete meeting & commitments</button
-        ><button [disabled]="api.busy()" (click)="deletion.set(null)">
+          {{
+            m.state === "draft"
+              ? "Analyze / review"
+              : m.state === "reviewed"
+                ? "View review"
+                : "Review commitments"
+          }}
+        </button>
+      </div>
+    </div>
+  } @empty {
+    <div class="empty">No meetings yet. Start with a transcript.</div>
+  }
+</section>
+<app-meeting-action-tracker />
+<app-meeting-access
+  (openMeeting)="openDirectoryMeeting($event)"
+/>
+@if (showCreate()) {
+  <div
+    class="meeting-drawer-backdrop"
+    aria-hidden="true"
+    (click)="closeCreate()"
+  ></div>
+
+  <section
+    class="meeting-drawer meeting-create-drawer"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="create-meeting-heading"
+    cdkTrapFocus
+    [cdkTrapFocusAutoCapture]="true"
+    (keydown.escape)="$event.stopPropagation(); closeCreate()"
+  >
+    <div class="meeting-drawer-heading">
+      <div>
+        <h2 id="create-meeting-heading">Add meeting</h2>
+        <p>Save a transcript and extract commitments for review.</p>
+      </div>
+
+      <button type="button" [disabled]="creating()" (click)="closeCreate()">
+        Close
+      </button>
+    </div>
+
+    @if (createError()) {
+      <p class="drawer-error" role="alert">{{ createError() }}</p>
+    }
+
+    <form #meetingForm="ngForm" (ngSubmit)="create()">
+      <fieldset [disabled]="creating()">
+        <label>
+          Meeting title *
+          <input
+            cdkFocusInitial
+            name="meetingTitle"
+            [(ngModel)]="title"
+            required
+            placeholder="Launch readiness / weekly sync"
+          />
+        </label>
+
+        <label>
+          Meeting date *
+          <input type="date" name="meetingDate" [(ngModel)]="heldOn" required />
+        </label>
+
+        <label>
+          Participants
+
+          <select
+            name="meetingParticipants"
+            multiple
+            size="5"
+            [(ngModel)]="participantIds"
+          >
+            @for (user of directory.users(); track user.id) {
+              @if (user.active) {
+                <option [value]="user.id">
+                  {{ user.name }} · {{ user.team }}
+                </option>
+              }
+            }
+          </select>
+
+          <small>
+            Select the actual participants. You are included automatically. Use
+            Ctrl/Cmd to select several.
+          </small>
+        </label>
+
+        <div class="meeting-visibility">
+          <span>Meeting visibility</span>
+
+          <div role="group" aria-label="Meeting visibility">
+            <button
+              type="button"
+              [class.selected]="visibility === 'public'"
+              [attr.aria-pressed]="visibility === 'public'"
+              (click)="visibility = 'public'"
+            >
+              Public
+            </button>
+
+            <button
+              type="button"
+              [class.selected]="visibility === 'private'"
+              [attr.aria-pressed]="visibility === 'private'"
+              (click)="visibility = 'private'"
+            >
+              Private
+            </button>
+          </div>
+
+          <small>
+            {{
+              visibility === "private"
+                ? "Only participants and their managers can access this meeting. It cannot be requested."
+                : "Organization members can find this meeting and request access. Its transcript remains restricted."
+            }}
+          </small>
+        </div>
+
+        <label>
+          Transcript *
+          <textarea
+            name="meetingTranscript"
+            [(ngModel)]="transcript"
+            required
+            minlength="10"
+            rows="12"
+            placeholder="Sarah: I'll finish the QA report by Friday.
+Alex: I'll deploy once Sarah approves the build."
+          ></textarea>
+        </label>
+
+        <button type="button" (click)="example()">
+          Use example transcript
+        </button>
+      </fieldset>
+
+      <div class="meeting-drawer-actions">
+        <button type="button" [disabled]="creating()" (click)="closeCreate()">
           Cancel
         </button>
+
+        <button
+          type="submit"
+          class="primary"
+          [disabled]="
+            creating() ||
+            meetingForm.invalid ||
+            !title.trim() ||
+            transcript.trim().length < 10
+          "
+        >
+          {{ creating() ? "Saving..." : "Save & analyze transcript" }}
+        </button>
       </div>
-    }
-    @if (m.state === "analyzed") {
-      @for (f of m.findings; track $index) {
-        <div class="finding">
-          <div class="section-heading">
-            <span class="badge"
-              >{{ f.kind }} · {{ (f.confidence * 100).toFixed(0) }}%
-              confidence</span
-            ><select [(ngModel)]="f.action">
-              <option value="ignore">Ignore</option>
-              <option value="confirm">Confirm promise</option>
-              <option value="link">Link existing promise</option>
-            </select>
-          </div>
-          <blockquote>{{ f.statement }}</blockquote>
-          <p class="muted">{{ f.explanation }}</p>
-          @if (f.action !== "ignore") {
-            <div class="form-grid">
-              <label>Promise<input [(ngModel)]="f.title" /></label
-              ><label
-                >Owner<select
-                  [(ngModel)]="f.owner_id"
-                  (ngModelChange)="assign(f, $event)"
-                >
-                  <option [ngValue]="null">
-                    Choose owner (AI: {{ f.owner }})
-                  </option>
-                  @for (u of directory.users(); track u.id) {
-                    <option [value]="u.id">{{ u.name }} · {{ u.team }}</option>
+    </form>
+  </section>
+}
+@if (showReview()) {
+  @if (selected(); as m) {
+    <div
+      class="meeting-drawer-backdrop"
+      aria-hidden="true"
+      (click)="closeReview()"
+    ></div>
+
+    <section
+      class="meeting-drawer meeting-review-drawer"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="review-meeting-heading"
+      cdkTrapFocus
+      [cdkTrapFocusAutoCapture]="true"
+      (keydown.escape)="$event.stopPropagation(); closeReview()"
+    >
+      <div class="meeting-drawer-heading">
+        <div>
+          <h2 id="review-meeting-heading">Review commitments</h2>
+          <p>{{ m.title }} · {{ m.held_on }}</p>
+        </div>
+
+        <button
+          cdkFocusInitial
+          type="button"
+          [disabled]="reviewSaving()"
+          (click)="closeReview()"
+        >
+          Close
+        </button>
+      </div>
+
+      @if (reviewError()) {
+        <p class="drawer-error" role="alert">{{ reviewError() }}</p>
+      }
+
+      @if (analyzing()) {
+        <div class="analysis-status" role="status" aria-live="polite">
+          Analyzing transcript and extracting commitments...
+        </div>
+      }
+      <div class="section-heading">
+        <div>
+          <h2>{{ m.title }}</h2>
+          <p>Review the interpretation before creating commitments.</p>
+        </div>
+        <button [disabled]="api.busy()" (click)="previewDelete(m)">
+          Delete meeting
+        </button>
+        @if (m.state === "draft" && !analyzing()) {
+          <button
+            class="primary"
+            [disabled]="api.busy()"
+            (click)="analyze(m.id)"
+          >
+            Analyze
+          </button>
+        }
+      </div>
+      @if (deletion(); as d) {
+        <div role="alert" class="local-style-1">
+          <h3>Delete {{ d.meeting_title }}?</h3>
+          <p>
+            This permanently deletes this meeting and
+            {{ d.commitment_count }} commitments, including all promises
+            connected through upstream or downstream dependencies.
+          </p>
+          <p>
+            {{ d.dependency_count }} dependency links and
+            {{ d.event_count }} timeline events will be removed.
+          </p>
+          @if (d.other_meetings.length) {
+            <p><strong>Promises from other meetings are affected:</strong></p>
+            <ul>
+              @for (other of d.other_meetings; track other.id) {
+                <li>{{ other.title }}</li>
+              }
+            </ul>
+            <p>The other meetings themselves remain.</p>
+          }
+          <ul>
+            @for (c of d.commitments; track c.id) {
+              <li>
+                {{ c.owner }} · {{ c.title }}
+                {{
+                  c.direct
+                    ? "(related to this meeting)"
+                    : "(linked dependency chain)"
+                }}
+              </li>
+            }
+          </ul>
+          <button
+            class="local-style-2"
+            [disabled]="api.busy()"
+            (click)="confirmDelete()"
+          >
+            Permanently delete meeting & commitments</button
+          ><button [disabled]="api.busy()" (click)="deletion.set(null)">
+            Cancel
+          </button>
+        </div>
+      }
+      @if (m.state === "analyzed" && !analyzing()) {
+        @for (f of m.findings; track $index) {
+          <div class="finding">
+            <div class="section-heading">
+              <span class="badge"
+                >{{ f.kind }} · {{ (f.confidence * 100).toFixed(0) }}%
+                confidence</span
+              ><select [(ngModel)]="f.action">
+                <option value="ignore">Ignore</option>
+                <option value="confirm">Confirm promise</option>
+                <option value="link">Link existing promise</option>
+              </select>
+            </div>
+            <blockquote>{{ f.statement }}</blockquote>
+            <p class="muted">{{ f.explanation }}</p>
+            @if (f.action !== "ignore") {
+              <div class="form-grid">
+                <label>Promise<input [(ngModel)]="f.title" /></label
+                ><label
+                  >Owner<select
+                    [(ngModel)]="f.owner_id"
+                    (ngModelChange)="assign(f, $event)"
+                  >
+                    <option [ngValue]="null">
+                      Choose owner (AI: {{ f.owner }})
+                    </option>
+                    @for (u of directory.users(); track u.id) {
+                      <option [value]="u.id">
+                        {{ u.name }} · {{ u.team }}
+                      </option>
+                    }
+                  </select></label
+                ><label
+                  >Deadline<input type="date" [(ngModel)]="f.due_date" /></label
+                ><label
+                  >Waiting condition<input [(ngModel)]="f.condition"
+                /></label>
+              </div>
+              <label
+                >Prerequisites from this meeting (Ctrl/Cmd to select
+                several)<select multiple [(ngModel)]="f.depends_on_indices">
+                  @for (other of m.findings; track $index) {
+                    @if (other !== f) {
+                      <option [ngValue]="$index">
+                        {{ other.owner }} · {{ other.title }}
+                      </option>
+                    }
                   }
                 </select></label
               ><label
-                >Deadline<input type="date" [(ngModel)]="f.due_date" /></label
-              ><label
-                >Waiting condition<input [(ngModel)]="f.condition"
-              /></label>
-            </div>
-            <label
-              >Prerequisites from this meeting (Ctrl/Cmd to select
-              several)<select multiple [(ngModel)]="f.depends_on_indices">
-                @for (other of m.findings; track $index) {
-                  @if (other !== f) {
-                    <option [ngValue]="$index">
-                      {{ other.owner }} · {{ other.title }}
-                    </option>
-                  }
-                }
-              </select></label
-            ><label
-              >Existing prerequisites<select
-                multiple
-                [(ngModel)]="f.prerequisite_ids"
-              >
-                @for (c of commitments(); track c.id) {
-                  <option [value]="c.id">{{ c.owner }} · {{ c.title }}</option>
-                }
-              </select></label
-            >
-            @if (f.action === "link") {
-              <label
-                >Existing commitment<select [(ngModel)]="f.existing_id">
-                  <option [ngValue]="null">Choose a commitment</option>
+                >Existing prerequisites<select
+                  multiple
+                  [(ngModel)]="f.prerequisite_ids"
+                >
                   @for (c of commitments(); track c.id) {
                     <option [value]="c.id">
                       {{ c.owner }} · {{ c.title }}
@@ -166,27 +361,44 @@ Alex: I'll deploy once Sarah approves the build."
                   }
                 </select></label
               >
+              @if (f.action === "link") {
+                <label
+                  >Existing commitment<select [(ngModel)]="f.existing_id">
+                    <option [ngValue]="null">Choose a commitment</option>
+                    @for (c of commitments(); track c.id) {
+                      <option [value]="c.id">
+                        {{ c.owner }} · {{ c.title }}
+                      </option>
+                    }
+                  </select></label
+                >
+              }
             }
-          }
-        </div>
+          </div>
+        }
+        @if (!m.findings.length) {
+          <div class="empty">
+            No meaningful statements detected. No commitments will be created.
+          </div>
+        }
+        <button
+          type="button"
+          class="primary"
+          [disabled]="api.busy() || analyzing() || reviewSaving()"
+          (click)="review(m)"
+        >
+          {{ reviewSaving() ? "Saving review..." : "Confirm review" }}
+        </button>
       }
-      @if (!m.findings.length) {
-        <div class="empty">
-          No meaningful statements detected. No commitments will be created.
-        </div>
+      @if (m.state === "reviewed") {
+        <p class="success">
+          Review saved. Linked promises retain their existing timeline.
+        </p>
       }
-      <button class="primary" [disabled]="api.busy()" (click)="review(m)">
-        Confirm review
-      </button>
-    }
-    @if (m.state === "reviewed") {
-      <p class="success">
-        Review saved. Linked promises retain their existing timeline.
-      </p>
-    }
-    <details>
-      <summary>Original transcript</summary>
-      <pre>{{ m.transcript }}</pre>
-    </details>
-  </section>
+      <details>
+        <summary>Original transcript</summary>
+        <pre>{{ m.transcript }}</pre>
+      </details>
+    </section>
+  }
 }

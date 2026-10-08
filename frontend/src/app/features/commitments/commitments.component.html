@@ -53,7 +53,194 @@
       </button>
     </div>
   }
+  <button type="button" (click)="openCreate()">
+    + Add commitment
+  </button>
 </div>
+@if (showCreate()) {
+  <div
+  class="commitment-drawer-backdrop"
+  aria-hidden="true"
+  (click)="!createSaving() && showCreate.set(false)"
+></div>
+
+<section
+  class="manual-commitment commitment-create-drawer"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="manual-heading"
+  cdkTrapFocus
+  [cdkTrapFocusAutoCapture]="true"
+  (keydown.escape)="
+    $event.stopPropagation();
+    !createSaving() && showCreate.set(false)
+  "
+>
+    <div class="section-heading">
+      <h2 id="manual-heading">Add commitment</h2>
+      <button
+        type="button"
+        [disabled]="createSaving()"
+        (click)="showCreate.set(false)"
+      >
+        Close
+      </button>
+    </div>
+
+    <p class="muted">
+      You own this commitment. Meetings and prerequisites are optional.
+    </p>
+
+    @if (createError()) {
+      <p role="alert">{{ createError() }}</p>
+    }
+
+    @if (createLoading()) {
+      <p role="status">Loading meetings and prerequisites...</p>
+    }
+
+    <form #manualForm="ngForm" (ngSubmit)="saveManual()">
+      <fieldset [disabled]="createLoading() || createSaving()">
+        <div class="manual-grid">
+          <label class="full-width">
+            Title *
+            <input
+              cdkFocusInitial
+              name="manualTitle"
+              [(ngModel)]="manual.title"
+              required
+              maxlength="500"
+              placeholder="What are you committing to?"
+            />
+          </label>
+
+          <label class="full-width">
+            Description
+            <textarea
+              name="manualDescription"
+              [(ngModel)]="manual.description"
+              maxlength="10000"
+              rows="3"
+              placeholder="Scope, expected outcome and useful context"
+            ></textarea>
+          </label>
+
+          <label>
+            Deadline
+            <input
+              type="date"
+              name="manualDeadline"
+              [(ngModel)]="manual.due_date"
+            />
+          </label>
+
+          <label>
+            Progress (%)
+            <input
+              type="number"
+              name="manualProgress"
+              [(ngModel)]="manual.progress"
+              required
+              min="0"
+              max="100"
+            />
+          </label>
+
+          <label class="full-width">
+            Related meeting
+            <select
+              name="manualMeeting"
+              [(ngModel)]="manual.meeting_id"
+            >
+              <option value="">No meeting</option>
+              @for (meeting of meetingChoices(); track meeting.id) {
+                <option [value]="meeting.id">
+                  {{ meeting.title }} · {{ meeting.held_on }} ·
+                  {{ meeting.people.join(", ") || "People not recorded" }}
+                </option>
+              }
+            </select>
+            <small>
+              People shown are speakers found in the transcript.
+            </small>
+          </label>
+
+          <label class="full-width">
+            Prerequisites
+            <select
+              multiple
+              size="5"
+              name="manualPrerequisites"
+              [(ngModel)]="manual.prerequisite_ids"
+            >
+              @for (item of prerequisiteChoices(); track item.id) {
+                <option [value]="item.id">
+                  {{ item.title }} · {{ item.owner }} · {{ item.status }}
+                </option>
+              }
+            </select>
+            <small>
+              Select commitments this work depends on.
+              Use Ctrl/Cmd to select multiple items.
+            </small>
+          </label>
+
+          <label class="full-width">
+            Condition
+            <input
+              name="manualCondition"
+              [(ngModel)]="manual.condition"
+              maxlength="2000"
+              placeholder="For example: after QA approval"
+            />
+          </label>
+
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              name="manualConditionMet"
+              [(ngModel)]="manual.condition_met"
+            />
+            Condition already met
+          </label>
+
+          <label class="full-width">
+            Current blocker
+            <textarea
+              name="manualBlocker"
+              [(ngModel)]="manual.blocker"
+              maxlength="2000"
+              rows="2"
+              placeholder="What is preventing progress?"
+            ></textarea>
+          </label>
+        </div>
+      </fieldset>
+
+      <div class="manual-actions">
+        <button
+          type="button"
+          [disabled]="createSaving() || createLoading()"
+          (click)="loadCreateOptions()"
+        >
+          Reload options
+        </button>
+
+        <button
+          type="submit"
+          [disabled]="
+            manualForm.invalid ||
+            !manual.title.trim() ||
+            createLoading() ||
+            createSaving()
+          "
+        >
+          {{ createSaving() ? "Saving..." : "Create commitment" }}
+        </button>
+      </div>
+    </form>
+  </section>
+}
 @if (loadError()) {
   <p role="alert">
     {{ loadError() }} <button (click)="filterTeam()">Retry</button>

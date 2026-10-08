@@ -1,6 +1,16 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, JSON, ForeignKey, DateTime, Integer, Date
+from sqlalchemy import (
+    String,
+    Text,
+    JSON,
+    ForeignKey,
+    DateTime,
+    Integer,
+    Date,
+    Index,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
 
@@ -24,6 +34,12 @@ class Meeting(Base):
     transcript: Mapped[str] = mapped_column(Text)
     findings: Mapped[list] = mapped_column(JSON, default=list)
     state: Mapped[str] = mapped_column(String(30), default="draft")
+    visibility: Mapped[str] = mapped_column(
+        String(10),
+        default="public",
+        nullable=False,
+        index=True,
+    )
 
 
 class Commitment(Base):
@@ -76,4 +92,80 @@ class Event(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
-from app.models import people
+Index("ix_events_commitment_created", Event.commitment_id, Event.created_at)
+Index("ix_dependencies_prerequisite", Dependency.prerequisite_id)
+Index(
+    "ix_commitments_org_owner_status",
+    Commitment.organization_id,
+    Commitment.owner_id,
+    Commitment.status,
+)
+
+
+class MeetingParticipant(Base):
+    __tablename__ = "meeting_participants"
+
+    meeting_id: Mapped[str] = mapped_column(
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+
+class MeetingAccessRequest(Base):
+    __tablename__ = "meeting_access_requests"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "meeting_id",
+            "requester_id",
+            name="uq_meeting_access_request",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=uid,
+    )
+
+    meeting_id: Mapped[str] = mapped_column(
+        ForeignKey("meetings.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+    requester_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default="pending",
+        index=True,
+    )
+
+    reason: Mapped[str] = mapped_column(
+        Text,
+        default="",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=now,
+    )
+
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    decided_by: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )

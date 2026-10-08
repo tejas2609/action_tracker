@@ -1,6 +1,6 @@
 from alembic import context
 from app.core.database import Base, engine
-from app.models import entities, people, integrations, email_actions
+from app.models import entities, people, integrations, email_actions, logs
 
 if context.is_offline_mode():
     context.configure(
