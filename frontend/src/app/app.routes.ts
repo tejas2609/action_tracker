@@ -65,6 +65,11 @@ export const routes: Routes = [
             (m) => m.Integrations,
           ),
       },
+      {
+        path: "chat",
+        loadComponent: () =>
+          import("./features/chat/chat.component").then((m) => m.Chat),
+      },
     ],
   },
   { path: "**", redirectTo: "" },

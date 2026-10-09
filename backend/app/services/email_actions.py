@@ -16,7 +16,11 @@ from app.models.email_actions import (
 )
 from app.services.gmail_integration import now
 from app.services.gmail_mailbox import GmailMailbox
-from app.services.email_classifier import candidates, classify
+from app.services.email_classifier import (
+    candidates,
+    classify,
+    proposal_candidates,
+)
 
 BATCH_SIZE = 5
 
@@ -195,6 +199,13 @@ async def scan(db, actor, ai):
             lock_connection.commit()
 
 
+def evidence_in_body(evidence: str, body: str) -> bool:
+    evidence = " ".join(evidence.split())
+    body = " ".join(body.split())
+
+    return bool(evidence) and evidence in body
+
+
 async def scan_locked(db, actor, ai):
     result = {
         "busy": False,
@@ -256,7 +267,30 @@ async def scan_locked(db, actor, ai):
                 email,
                 rows,
             )
-            print(decision)
+            if decision.new_tasks:
+                expanded_rows = proposal_candidates(
+                    db,
+                    actor,
+                    decision.new_tasks,
+                    rows,
+                )
+
+                original_ids = {commitment.id for commitment in rows}
+                expanded_ids = {commitment.id for commitment in expanded_rows}
+
+                # Only make another AI call when the targeted lookup found
+                # commitments that the first classification did not see.
+                if expanded_ids != original_ids:
+                    rows = expanded_rows
+
+                    decision = await classify(
+                        ai,
+                        actor,
+                        mailbox.email,
+                        email,
+                        rows,
+                    )
+            print("I am here", decision)
             # Re-check the connection after the AI request.
             connection = db.scalar(
                 select(GmailConnection)
@@ -282,13 +316,13 @@ async def scan_locked(db, actor, ai):
             body = email["body_text"][:12000]
 
             linked_ids = set()
-
+            print("reached here", decision)
             for related in decision.related:
                 if (
                     related.confidence < 0.90
                     or related.commitment_id not in allowed_ids
                     or related.commitment_id in linked_ids
-                    or related.evidence not in body
+                    or not evidence_in_body(related.evidence, body)
                 ):
                     continue
 
@@ -318,17 +352,62 @@ async def scan_locked(db, actor, ai):
                 linked_ids.add(commitment.id)
 
             proposed_titles = set()
-
+            print("reached here too", decision)
             for task in decision.new_tasks:
                 normalized = task.title.strip().casefold()
+                evidence_matches = evidence_in_body(task.evidence, body)
 
                 if (
                     task.confidence < 0.85
-                    or task.evidence not in body
+                    or not evidence_matches
                     or normalized in proposed_titles
                 ):
+                    print(
+                        "Email proposal skipped:",
+                        {
+                            "confidence": task.confidence,
+                            "evidence_matches": evidence_matches,
+                            "duplicate_in_batch": normalized in proposed_titles,
+                        },
+                    )
                     continue
 
+                # Keep your existing duplicate check and database insertion below.
+                existing_matches = list(
+                    db.scalars(
+                        select(Commitment)
+                        .where(
+                            Commitment.owner_id == actor.id,
+                            Commitment.organization_id == actor.organization_id,
+                            Commitment.status.in_(["active", "review"]),
+                            func.lower(func.trim(Commitment.title))
+                            == task.title.strip().lower(),
+                        )
+                        .with_for_update()
+                    )
+                )
+
+                if existing_matches:
+                    # An identical active/review title is not saved as another task.
+                    # Only auto-attach when the match is unambiguous.
+                    if len(existing_matches) == 1:
+                        existing = existing_matches[0]
+
+                        if existing.id not in linked_ids:
+                            if attach(
+                                db,
+                                actor,
+                                existing,
+                                mailbox.google_sub,
+                                email,
+                                task.description,
+                            ):
+                                result["attached"] += 1
+
+                            linked_ids.add(existing.id)
+
+                    proposed_titles.add(normalized)
+                    continue
                 commitment = Commitment(
                     id=str(uuid4()),
                     organization_id=actor.organization_id,

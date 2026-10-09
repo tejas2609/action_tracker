@@ -7,6 +7,7 @@ from app.repositories.people import PeopleRepository
 from app.core.config import settings
 from app.models.people import User, LoginSession, Message
 from app.models.entities import Commitment, Event
+from app.services.chat_source import enqueue_chat
 
 
 def public_user(u):
@@ -158,6 +159,7 @@ def send(peer_id, body, actor=None, db=None):
     )
     db.add(msg)
     db.flush()
+    enqueue_chat(db, actor, peer, msg)
     if body.commitment_id:
         db.add(
             Event(

@@ -1,0 +1,76 @@
+<section>
+  <h2>Chat and connected-source review</h2>
+  <p>Review proposed work before accepting it.</p>
+
+  <button type="button" (click)="load()" [disabled]="loading() || working()">
+    Refresh
+  </button>
+
+  @for (item of data().items; track item.id) {
+    <article>
+      <small>
+        {{ item.source }} · {{ item.sender }} ·
+        {{ item.received_at | date: "medium" }}
+      </small>
+
+      <label>
+        Commitment
+        <input
+          [(ngModel)]="item.title"
+          maxlength="500"
+          [disabled]="working()"
+        />
+      </label>
+
+      <label>
+        Due date
+        <input type="date" [(ngModel)]="item.due_date" [disabled]="working()" />
+      </label>
+
+      <p>{{ item.description }}</p>
+
+      <details>
+        <summary>Read source message</summary>
+        <pre>{{ item.body_text }}</pre>
+      </details>
+
+      <button
+        type="button"
+        (click)="decide(item, true)"
+        [disabled]="working() || loading()"
+      >
+        Accept
+      </button>
+
+      <button
+        type="button"
+        (click)="decide(item, false)"
+        [disabled]="working() || loading()"
+      >
+        Reject
+      </button>
+    </article>
+  } @empty {
+    <p>
+      {{ loading() ? "Loading…" : "No source proposals awaiting review." }}
+    </p>
+  }
+
+  <button
+    type="button"
+    (click)="load(page() - 1)"
+    [disabled]="page() <= 1 || loading() || working()"
+  >
+    Previous
+  </button>
+
+  <span>Page {{ page() }}</span>
+
+  <button
+    type="button"
+    (click)="load(page() + 1)"
+    [disabled]="page() * 10 >= data().total || loading() || working()"
+  >
+    Next
+  </button>
+</section>

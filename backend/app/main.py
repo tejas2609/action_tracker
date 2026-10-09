@@ -13,6 +13,7 @@ from app.api.integrations import router as integrations_router
 from app.api.email_actions import router as email_actions_router
 from app.features.meeting_agendas.routes import router as meeting_agendas_router
 from app.api.meeting_access import router as meeting_access_router
+from app.api.source_actions import router as source_actions_router
 
 
 @asynccontextmanager
@@ -40,3 +41,4 @@ app.include_router(integrations_router)
 app.include_router(email_actions_router)
 app.include_router(meeting_agendas_router)
 app.include_router(meeting_access_router)
+app.include_router(source_actions_router)

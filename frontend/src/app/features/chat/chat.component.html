@@ -1,0 +1,124 @@
+<header class="page-heading">
+  <h1>Chat</h1>
+  <p>Talk with people in your organisation.</p>
+</header>
+
+@if (error()) {
+  <div class="chat-error" role="alert">{{ error() }}</div>
+}
+
+<div class="chat-layout">
+  <aside class="directory" aria-label="Organisation users">
+    <div class="directory-heading">
+      <h2>People</h2>
+      <button
+        type="button"
+        (click)="loadUsers()"
+        [disabled]="directoryLoading()"
+      >
+        Refresh
+      </button>
+    </div>
+
+    <input
+      type="search"
+      aria-label="Search users"
+      placeholder="Search name, email or team"
+      [ngModel]="search()"
+      (ngModelChange)="search.set($event)"
+    />
+
+    <div class="user-list">
+      @if (directoryLoading()) {
+        <p class="empty" role="status">Loading people…</p>
+      }
+
+      @for (user of users(); track user.id) {
+        <button
+          type="button"
+          class="user-row"
+          [class.selected]="peer()?.id === user.id"
+          [attr.aria-pressed]="peer()?.id === user.id"
+          (click)="selectUser(user)"
+        >
+          <span class="avatar">{{ user.name.slice(0, 1) }}</span>
+          <span class="user-info">
+            <strong>{{ user.name }}</strong>
+            <small>{{ user.team }} · {{ user.role }}</small>
+          </span>
+        </button>
+      } @empty {
+        @if (!directoryLoading()) {
+          <p class="empty">No users found.</p>
+        }
+      }
+    </div>
+  </aside>
+
+  <section class="conversation" aria-label="Conversation">
+    @if (peer(); as user) {
+      <header class="conversation-heading">
+        <div>
+          <h2>{{ user.name }}</h2>
+          <small>{{ user.email }}</small>
+        </div>
+        <button type="button" (click)="refresh()">Refresh</button>
+      </header>
+
+      <div class="message-list">
+        @if (loading()) {
+          <p class="empty" role="status">Loading conversation…</p>
+        } @else {
+          @if (hasMore()) {
+            <button
+              type="button"
+              class="older-button"
+              [disabled]="loadingOlder()"
+              (click)="loadOlder()"
+            >
+              {{ loadingOlder() ? "Loading…" : "Load older messages" }}
+            </button>
+          }
+
+          @for (message of messages(); track message.id) {
+            <article
+              class="message"
+              [class.mine]="message.sender_id === session.user()?.id"
+            >
+              <p>{{ message.body }}</p>
+              <time [attr.datetime]="message.created_at">
+                {{ message.created_at | date: "MMM d, h:mm a" }}
+              </time>
+            </article>
+          } @empty {
+            <p class="empty">Start your conversation with {{ user.name }}.</p>
+          }
+        }
+      </div>
+
+      <form class="composer" (ngSubmit)="send()">
+        <textarea
+          name="message"
+          aria-label="Message"
+          placeholder="Write a message…"
+          rows="3"
+          maxlength="10000"
+          [ngModel]="draft()"
+          (ngModelChange)="draft.set($event)"
+        ></textarea>
+
+        <button
+          type="submit"
+          [disabled]="!draft().trim() || sending() || loading()"
+        >
+          {{ sending() ? "Sending…" : "Send" }}
+        </button>
+      </form>
+    } @else {
+      <div class="welcome">
+        <h2>Your conversations</h2>
+        <p>Select a person on the left to open their chat.</p>
+      </div>
+    }
+  </section>
+</div>

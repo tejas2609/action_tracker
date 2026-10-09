@@ -10,6 +10,7 @@ from sqlalchemy import (
     Date,
     Index,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
@@ -67,6 +68,12 @@ class Commitment(Base):
     organization_id: Mapped[str] = mapped_column(
         ForeignKey("organizations.id"),
         index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=now,
+        server_default=func.now(),
     )
 
 

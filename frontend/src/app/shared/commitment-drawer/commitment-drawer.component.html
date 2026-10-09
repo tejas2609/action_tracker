@@ -86,6 +86,9 @@
           }
           @if (c.owner_id === session.user()?.id) {
             <commitment-emails [commitmentId]="c.id" />
+            @if (c.owner_id === session.user()?.id) {
+              <commitment-sources [commitmentId]="c.id" />
+            }
           }
           @if (dirty) {
             <small

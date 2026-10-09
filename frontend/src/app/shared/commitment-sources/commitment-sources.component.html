@@ -1,0 +1,45 @@
+<section>
+  <h3>Related chat and source messages</h3>
+
+  <button type="button" (click)="load()" [disabled]="loading()">Refresh</button>
+
+  @if (error()) {
+    <p role="alert">{{ error() }}</p>
+  }
+
+  @for (item of data().items; track item.id) {
+    <article>
+      <small>
+        {{ item.source }} · {{ item.sender }} ·
+        {{ item.received_at | date: "medium" }}
+      </small>
+
+      <p>{{ item.description }}</p>
+
+      <details>
+        <summary>Read message</summary>
+        <pre>{{ item.body_text }}</pre>
+      </details>
+    </article>
+  } @empty {
+    <p>
+      {{ loading() ? "Loading…" : "No related source messages." }}
+    </p>
+  }
+
+  <button
+    type="button"
+    (click)="load(page() - 1)"
+    [disabled]="page() <= 1 || loading()"
+  >
+    Previous
+  </button>
+
+  <button
+    type="button"
+    (click)="load(page() + 1)"
+    [disabled]="page() * 10 >= data().total || loading()"
+  >
+    Next
+  </button>
+</section>

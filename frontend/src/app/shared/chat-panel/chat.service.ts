@@ -1,6 +1,6 @@
 import { Injectable, inject } from "@angular/core";
 import { Api } from "../../core/api.service";
-import { ChatPage } from "../../core/models";
+import { ChatPage, ChatMessage } from "../../core/models";
 @Injectable({ providedIn: "root" })
 export class ChatService {
   private api = inject(Api);
@@ -19,7 +19,7 @@ export class ChatService {
     body: string,
     commitmentId?: string,
     quiet = false,
-  ): Promise<unknown> {
+  ): Promise<ChatMessage> {
     return this.api.call(
       "POST",
       "/chat/" + encodeURIComponent(peerId),

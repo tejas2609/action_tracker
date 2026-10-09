@@ -21,6 +21,7 @@ import { CommitmentList } from "../../shared/commitment-list/commitment-list.com
 import { DependencyGraph } from "../../shared/dependency-graph/dependency-graph.component";
 import { Pagination } from "../../shared/pagination/pagination.component";
 import { EmailReview } from "./email-review/email-review.component";
+import { SourceReview } from "./source-review/source-review.component";
 @Component({
   standalone: true,
   imports: [
@@ -29,7 +30,8 @@ import { EmailReview } from "./email-review/email-review.component";
     DependencyGraph,
     Pagination,
     EmailReview,
-    A11yModule
+    A11yModule,
+    SourceReview
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./commitments.component.html",
