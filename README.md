@@ -25,6 +25,8 @@ Built with Angular, FastAPI, PostgreSQL, and a replaceable AI provider integrati
 | Gmail integration | Connect Google accounts through OAuth with profile and read-only email permissions. |
 | Email review | Review, edit, accept, or reject tasks proposed from incoming emails. |
 | Related emails | Attach relevant emails to commitments with explanations and readable source text. |
+| Chat review | Review, edit, accept, or reject tasks proposed from chats shared. |
+| Related chats | Attach relevant chats to commitments with explanations and readable source text. |
 | Follow-up assistance | Generate contextual follow-up drafts. |
 | Profiles and teams | Manage profiles, team membership, and reporting relationships. |
 | Operational logging | Separate authentication, general activity, and error log tables with timestamps and request metadata. |
@@ -318,6 +320,18 @@ python -m app.email_worker
 ```
 
 Connect Gmail through Integrations and allow baseline initialization before sending a test message. The worker runs independently of the browser, with a 30-second pause after processing. Without the worker, use **Commitments → Review → Check Gmail** to process a batch manually.
+
+### 10. Start the source worker
+
+In a terminal with the backend virtual environment activated:
+
+```bash
+cd backend
+python -m app.source_worker
+```
+
+Start the source worker to enable the engine to process chats, gather context, and relate or form commitments. The worker runs independently of the browser, with a 1-second pause after processing.
+
 
 ## Development Login
 
