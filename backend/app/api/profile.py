@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import current_user
 from app.core.database import get_db
 from app.models.people import User
-from app.services import profile as operations
+from app.services.people import profile as operations
 
 router = APIRouter(prefix="/api/profile", tags=["Profile"])
 

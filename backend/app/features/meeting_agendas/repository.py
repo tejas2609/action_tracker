@@ -1,6 +1,6 @@
 from sqlalchemy import select, union, func, case
 from sqlalchemy.orm import aliased
-from app.services.meeting_access_policy import readable_condition
+from app.services.meetings.meeting_access_policy import readable_condition
 
 from app.models.entities import Meeting, Commitment, Dependency, Event
 

@@ -1,3 +1,4 @@
+from app.core.async_bridge import run_legacy
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
@@ -7,7 +8,7 @@ from app.ai.provider import get_provider
 from app.core.auth import current_user
 from app.core.database import get_db
 from app.models.people import User
-from app.services import email_actions as service
+from app.services.email import email_actions as service
 
 router = APIRouter(prefix="/api", tags=["email actions"])
 
@@ -22,7 +23,7 @@ async def scan(
     ai=Depends(get_provider),
 ):
     try:
-        return await service.scan(db, actor, ai)
+        return await run_legacy(service.scan, db, actor, ai)
 
     except httpx.HTTPError:
         raise HTTPException(
@@ -51,7 +52,7 @@ async def source(
     response.headers["Cache-Control"] = "no-store"
 
     try:
-        return await service.review_source(db, actor, id)
+        return await run_legacy(service.review_source, db, actor, id)
 
     except httpx.HTTPError:
         raise HTTPException(502, "Cannot read Gmail source.") from None
@@ -65,7 +66,7 @@ async def accept(
     db: Session = Depends(get_db),
 ):
     try:
-        return await service.accept(db, actor, id, body)
+        return await run_legacy(service.accept, db, actor, id, body)
 
     except httpx.HTTPError:
         raise HTTPException(502, "Cannot read Gmail source.") from None

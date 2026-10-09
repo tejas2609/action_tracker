@@ -13,6 +13,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.core.security import EncryptedJSON
 from app.models.entities import now, uid
 
 
@@ -51,7 +52,14 @@ class SourceInbox(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
     )
 
-    payload: Mapped[dict] = mapped_column(JSON)
+    thread_id: Mapped[str] = mapped_column(
+        String(255), default="", server_default="", index=True
+    )
+    claim_token: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    claimed_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    payload: Mapped[dict] = mapped_column(EncryptedJSON())
 
     state: Mapped[str] = mapped_column(String(20), default="queued")
     attempts: Mapped[int] = mapped_column(Integer, default=0)
@@ -100,6 +108,7 @@ class CommitmentSource(Base):
     # proposal or related
     kind: Mapped[str] = mapped_column(String(20))
 
+    proposed_changes: Mapped[dict] = mapped_column(JSON, default=dict)
     description: Mapped[str] = mapped_column(Text)
     evidence: Mapped[str] = mapped_column(Text)
 

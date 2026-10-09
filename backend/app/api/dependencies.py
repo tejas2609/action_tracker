@@ -5,7 +5,7 @@ from app.core.auth import current_user
 from app.models.people import User
 from app.ai.provider import get_provider
 from app.repositories.store import Store
-from app.services.workflow import Workflow
+from app.services.commitments.workflow import Workflow
 
 
 def service(
@@ -13,4 +13,6 @@ def service(
     ai=Depends(get_provider),
     actor: User = Depends(current_user),
 ):
-    return Workflow(Store(db, actor), ai)
+    from app.ai.session_provider import SessionAwareProvider
+
+    return Workflow(Store(db, actor), SessionAwareProvider(ai, db))

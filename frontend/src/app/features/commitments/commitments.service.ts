@@ -21,6 +21,8 @@ export interface MeetingOption {
   people: string[];
 }
 
+export type PublicMeetingOption = Pick<MeetingOption, "id" | "title" | "held_on">;
+
 export interface ManualCommitmentInput {
   title: string;
   description: string;
@@ -126,5 +128,30 @@ export class CommitmentsService {
 
   meetingOptions(): Promise<MeetingOption[]> {
     return this.api.call("GET", "/meeting-options", undefined, true);
+  }
+
+  async publicMeetingOptions(): Promise<PublicMeetingOption[]> {
+    const rows: PublicMeetingOption[] = [];
+    for (let page = 1; ; page++) {
+      const result = await this.api.call<Page<PublicMeetingOption>>(
+        "GET",
+        `/meeting-directory?page=${page}&page_size=100`,
+        undefined,
+        true,
+      );
+      rows.push(...result.items);
+      if (rows.length >= result.total || !result.items.length) return rows;
+    }
+  }
+
+  assignMeeting(
+    id: string,
+    meetingId: string,
+  ): Promise<{ id: string; meeting_id: string }> {
+    return this.api.call(
+      "POST",
+      `/commitments/${encodeURIComponent(id)}/meeting`,
+      { meeting_id: meetingId },
+    );
   }
 }

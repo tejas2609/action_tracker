@@ -151,6 +151,16 @@
   background: #f4f8f1;
 }
 
+.meeting-assignment {
+  flex-wrap: wrap;
+}
+
+.meeting-assignment select {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
 @media (max-width: 700px) {
   .commitment-drawer {
     width: 100vw;

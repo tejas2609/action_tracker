@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
+from app.core.security import EncryptedText
 
 
 def uid():
@@ -32,7 +33,7 @@ class Meeting(Base):
     )
     title: Mapped[str] = mapped_column(String(200))
     held_on: Mapped[datetime] = mapped_column(Date)
-    transcript: Mapped[str] = mapped_column(Text)
+    transcript: Mapped[str] = mapped_column(EncryptedText())
     findings: Mapped[list] = mapped_column(JSON, default=list)
     state: Mapped[str] = mapped_column(String(30), default="draft")
     visibility: Mapped[str] = mapped_column(

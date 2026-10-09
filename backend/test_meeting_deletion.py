@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, select, event
 from sqlalchemy.orm import Session
 from app.core.database import Base
 from app.models.entities import Meeting, Commitment, Dependency, Event
-from app.services.meeting_deletion import deletion_plan, delete_meeting
+from app.services.meetings.meeting_deletion import deletion_plan, delete_meeting
 
 @pytest.fixture
 def data():

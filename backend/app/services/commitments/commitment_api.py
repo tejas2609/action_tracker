@@ -4,22 +4,17 @@ from fastapi import HTTPException
 from datetime import date
 from app.models.entities import Meeting, Commitment, Dependency
 from app.models.people import User
-from app.services.intelligence import serialize
-from app.services.team_deadlines import team_missed_deadlines
-from app.models.entities import Commitment, Dependency, Meeting
-from app.services.intelligence import serialize
+from app.services.commitments.intelligence import serialize
+from app.services.commitments.team_deadlines import team_missed_deadlines
 from app.models.entities import MeetingParticipant
-from app.services.meeting_access_policy import require_workflow_access
-from app.services.meeting_access_policy import readable_condition
+from app.services.meetings.meeting_access_policy import require_workflow_access
+from app.services.meetings.meeting_access_policy import readable_condition
 
 
 def editable(s, id):
-    c = s.s.get(Commitment, id)
-    if c.owner_id != s.s.actor.id and s.s.actor.role != "Product Manager":
-        raise HTTPException(
-            403, "Only the owner or a Product Manager can edit this commitment."
-        )
-    return c
+    from app.core.permissions import require_edit
+
+    return require_edit(s.s.actor, s.s.get(Commitment, id))
 
 
 def health():
@@ -29,33 +24,10 @@ def health():
 def commitments(scope="mine", q="", state="all", page=None, page_size=None, s=None):
     if scope not in ("mine", "organization"):
         raise HTTPException(422, "Invalid scope")
-    snapshot = s.snapshot()
-    rows = [
-        c
-        for c in s.listing(include_impact=False, snapshot=snapshot)
-        if scope == "organization" or c["owner_id"] == s.s.actor.id
-    ]
-    rows = [
-        c
-        for c in rows
-        if q.casefold() in (c["title"] + " " + c["owner"]).casefold()
-        and (
-            state == "all"
-            or c["status"] == state
-            or c["risk"]["level"] == state
-            or (c["risk"]["state"] == state)
-            or (state == "overdue" and c["risk"].get("overdue"))
-            or (
-                state == "attention"
-                and c["status"] == "active"
-                and (c["risk"]["level"] != "low" or c["risk"].get("overdue"))
-            )
-        )
-    ]
-    items = rows[(page - 1) * page_size : page * page_size]
-    for item in items:
-        item["impact"] = list(snapshot[1].descendants(item["id"]))
-    return {"items": items, "total": len(rows), "page": page, "page_size": page_size}
+    from app.repositories.commitments import CommitmentRepository
+
+    repo = CommitmentRepository(s.s.db, s.s.actor)
+    return repo.page(repo.filtered(scope, q, state), page, page_size)
 
 
 def team_deadlines(
@@ -77,43 +49,63 @@ def team_deadlines(
 
 def dashboard(missed_page=None, upcoming_page=None, page_size=None, s=None):
 
-    mine = [c for c in s.listing() if c["owner_id"] == s.s.actor.id]
-    active = [c for c in mine if c["status"] == "active"]
-    today = date.today()
-    missed = [c for c in active if c["due_date"] is not None and c["due_date"] < today]
-    upcoming = [
-        c for c in active if c["due_date"] is not None and c["due_date"] >= today
-    ]
-    missed.sort(key=lambda c: (c["due_date"], c["id"]))
-    upcoming.sort(key=lambda c: (c["due_date"], c["id"]))
+    from app.repositories.commitments import CommitmentRepository
+    from sqlalchemy import func, case
 
-    def paginate(rows, requested_page):
-        total = len(rows)
-        last_page = max(1, (total + page_size - 1) // page_size)
-        actual_page = min(requested_page, last_page)
-        start = (actual_page - 1) * page_size
-        return {
-            "items": rows[start : start + page_size],
-            "total": total,
-            "page": actual_page,
-            "page_size": page_size,
-        }
+    repo = CommitmentRepository(s.s.db, s.s.actor)
+    _, overdue, level, risk_state = repo.expressions()
+    active = Commitment.status == "active"
 
+    def count_if(condition):
+        return func.coalesce(func.sum(case((condition, 1), else_=0)), 0)
+
+    base = (
+        Commitment.organization_id == s.s.actor.organization_id,
+        Commitment.owner_id == s.s.actor.id,
+        Commitment.status != "review",
+    )
+    from sqlalchemy import and_
+
+    row = s.s.db.execute(
+        select(
+            func.count(),
+            count_if(active),
+            count_if(and_(active, level == "low")),
+            count_if(and_(active, level != "low")),
+            count_if(and_(active, risk_state == "waiting")),
+            count_if(and_(active, overdue)),
+            count_if(Commitment.status == "completed"),
+        ).where(*base)
+    ).one()
+    names = (
+        "total",
+        "active",
+        "on_track",
+        "at_risk",
+        "blocked",
+        "overdue",
+        "completed",
+    )
+    query = repo.base().where(Commitment.owner_id == s.s.actor.id, active)
     return {
-        "metrics": {
-            "total": len(mine),
-            "active": len(active),
-            "on_track": sum((c["risk"]["level"] == "low" for c in active)),
-            "at_risk": sum((c["risk"]["level"] != "low" for c in active)),
-            "blocked": sum((c["risk"]["state"] == "waiting" for c in active)),
-            "overdue": len(missed),
-            "completed": sum((c["status"] == "completed" for c in mine)),
-        },
-        "missed": paginate(missed, missed_page),
-        "upcoming": paginate(upcoming, upcoming_page),
-        "team_missed": (
-            team_missed_deadlines(s, page_size=5) if s.s.actor.is_manager else None
+        "metrics": dict(zip(names, row)),
+        "missed": repo.page(
+            query.where(overdue).order_by(Commitment.due_date, Commitment.id),
+            missed_page,
+            page_size,
+            True,
         ),
+        "upcoming": repo.page(
+            query.where(Commitment.due_date >= date.today()).order_by(
+                Commitment.due_date, Commitment.id
+            ),
+            upcoming_page,
+            page_size,
+            True,
+        ),
+        "team_missed": team_missed_deadlines(s, page_size=5)
+        if s.s.actor.is_manager
+        else None,
     }
 
 
@@ -143,8 +135,16 @@ def graph(mode="immediate", s=None):
     return {"items": items, "mine_ids": sorted(mine), "mode": mode}
 
 
-def meetings(s=None):
-    return sorted(s.s.all(Meeting), key=lambda m: m.held_on, reverse=True)
+def meetings(s=None, page=1, page_size=100):
+    return list(
+        s.s.db.scalars(
+            select(Meeting)
+            .where(readable_condition(s.s.actor))
+            .order_by(Meeting.held_on.desc(), Meeting.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    )
 
 
 def create_meeting(body, s=None):
@@ -217,10 +217,33 @@ def review(id, body, s=None):
 
 def detail(id, s=None):
     c = s.s.get(Commitment, id)
-    rows, edges = s.snapshot()
+    rows, edges = s.snapshot([id])
     result = serialize(c, rows, edges)
     result["timeline"] = sorted(s.s.events_for(id), key=lambda e: e.created_at)
-    result["meeting"] = s.s.get(Meeting, c.meeting_id) if c.meeting_id else None
+    result["meeting"] = None
+    if c.meeting_id:
+        meeting = s.s.db.scalar(
+            select(Meeting).where(
+                Meeting.id == c.meeting_id,
+                readable_condition(s.s.actor),
+            )
+        )
+        if meeting is not None:
+            result["meeting"] = meeting
+        else:
+            # Public directory metadata is visible without transcript access.
+            metadata = (
+                s.s.db.execute(
+                    select(Meeting.id, Meeting.title, Meeting.held_on).where(
+                        Meeting.id == c.meeting_id,
+                        Meeting.organization_id == s.s.actor.organization_id,
+                        Meeting.visibility == "public",
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            result["meeting"] = dict(metadata) if metadata else None
     _, fingerprint = s.blocker_context(id)
     result["analysis"] = {
         "explanation": c.analysis_text,
@@ -228,19 +251,7 @@ def detail(id, s=None):
         "stale": c.analysis_hash != fingerprint,
         "revision": fingerprint,
     }
-    ids = {id}
-    pending = [id]
-    while pending:
-        n = pending.pop()
-        for e in edges:
-            if n in (e.commitment_id, e.prerequisite_id):
-                other = e.prerequisite_id if n == e.commitment_id else e.commitment_id
-                if other not in ids:
-                    ids.add(other)
-                    pending.append(other)
-    result["related"] = [
-        serialize(x, rows, edges) for x in rows.values() if x.id in ids
-    ]
+    result["related"] = [serialize(x, rows, edges) for x in rows.values()]
     result["can_edit"] = (
         c.owner_id == s.s.actor.id or s.s.actor.role == "Product Manager"
     )
@@ -259,11 +270,15 @@ def edge(id, body, s=None):
 
 
 def remove_edge(id, pre, s=None):
+    from app.core.concurrency import lock_organization
+
+    lock_organization(s.s.db, s.s.actor.organization_id)
+    s.s.db.expire_all()
     c = editable(s, id)
     s.s.get(Commitment, pre)
     e = s.s.db.get(Dependency, (id, pre))
     if e:
-        before = s.risk_levels()
+        before = s.risk_levels([id, pre])
         s.s.db.delete(e)
         s.s.db.flush()
         s.s.event(c, "dependency_removed", "Removed prerequisite " + pre)
@@ -273,6 +288,10 @@ def remove_edge(id, pre, s=None):
 
 
 def replace_edge(id, pre, body, s=None):
+    from app.core.concurrency import lock_organization
+
+    lock_organization(s.s.db, s.s.actor.organization_id)
+    s.s.db.expire_all()
     c = editable(s, id)
     s.s.get(Commitment, pre)
     s.s.get(Commitment, body.prerequisite_id)
@@ -370,7 +389,7 @@ def create_manual_commitment(workflow, body):
     return serialize(commitment, rows, edges)
 
 
-def meeting_options(store):
+def meeting_options(store, page=1, page_size=100):
     rows = store.db.execute(
         select(
             Meeting.id,
@@ -380,6 +399,8 @@ def meeting_options(store):
         )
         .where(readable_condition(store.actor))
         .order_by(Meeting.held_on.desc(), Meeting.id)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
     )
 
     result = []

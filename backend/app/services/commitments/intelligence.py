@@ -1,5 +1,5 @@
 from datetime import date
-from app.services.dependency_graph import DependencyGraph
+from app.services.commitments.dependency_graph import DependencyGraph
 
 
 def assess(c, rows, edges, today=None):
@@ -30,12 +30,16 @@ def assess(c, rows, edges, today=None):
         "high"
         if (days is not None and days < 0)
         or (blocked and days is not None and days <= 3)
-        else "medium" if reasons else "low"
+        else "medium"
+        if reasons
+        else "low"
     )
     state = (
         "waiting"
         if blocked
-        else "overdue" if days is not None and days < 0 else "on-track"
+        else "overdue"
+        if days is not None and days < 0
+        else "on-track"
     )
     return {
         "level": level,

@@ -3,7 +3,7 @@
 from types import SimpleNamespace
 from time import perf_counter
 from statistics import median
-from app.services.dependency_graph import DependencyGraph
+from app.services.commitments.dependency_graph import DependencyGraph
 
 
 def original(identifier, edges):

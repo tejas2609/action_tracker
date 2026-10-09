@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 from app.core.database import Base
 from app.core.config import settings
-from app.services.dependency_graph import DependencyGraph
-from app.services.intelligence import descendants, assess, serialize
+from app.services.commitments.dependency_graph import DependencyGraph
+from app.services.commitments.intelligence import descendants, assess, serialize
 from app.models.logs import AuthLog, GeneralLog, ErrorLog
 from app.models import people, entities, integrations, email_actions
 from app.main import app
@@ -151,6 +151,9 @@ def test_successful_auth_and_activity_logs(tmp_path, monkeypatch):
             User(
                 id="test-user",
                 organization_id="test-org",
+                password_hash=__import__(
+                    "app.core.security", fromlist=["hash_password"]
+                ).hash_password("TestPassword123!"),
                 name="Tester",
                 email="tester@example.com",
                 team="QA",
@@ -172,7 +175,8 @@ def test_successful_auth_and_activity_logs(tmp_path, monkeypatch):
     try:
         client = TestClient(app)
         login = client.post(
-            "/api/auth/login", json={"username": "Tester", "password": "pass"}
+            "/api/auth/login",
+            json={"username": "Tester", "password": "TestPassword123!"},
         )
         assert login.status_code == 200
         response = client.post(

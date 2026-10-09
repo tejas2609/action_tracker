@@ -1,3 +1,4 @@
+from app.core.async_bridge import run_legacy
 from fastapi import APIRouter, Depends, Query
 from datetime import date
 from typing import Literal
@@ -8,11 +9,12 @@ from app.schemas.contracts import (
     EdgeInput,
     SearchInput,
     FollowupInput,
+    AssignMeeting,
 )
-from app.services import commitment_api as operations
+from app.services.commitments import commitment_api as operations
 from app.api.dependencies import service
 from app.schemas.contracts import ManualCommitmentInput
-from app.services.commitment_api import (
+from app.services.commitments.commitment_api import (
     create_manual_commitment,
     meeting_options,
 )
@@ -28,7 +30,7 @@ def health():
 @router.get("/commitments")
 def commitments(
     scope: str = "mine",
-    q: str = "",
+    q: str = Query("", max_length=200),
     state: str = "all",
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
@@ -48,15 +50,24 @@ def create_commitment(
 
 
 @router.get("/meeting-options")
-def list_meeting_options(s=Depends(service)):
-    return meeting_options(s.s)
+def list_meeting_options(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=200),
+    s=Depends(service),
+):
+    return meeting_options(s.s, page, page_size)
+
+
+@router.post("/commitments/{id}/meeting")
+def assign_meeting(id: str, body: AssignMeeting, s=Depends(service)):
+    return s.assign_meeting(id, body.meeting_id)
 
 
 @router.get("/team-missed-deadlines")
 def team_deadlines(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=100),
-    q: str = "",
+    q: str = Query("", max_length=200),
     owner_id: str = "",
     due_from: date | None = None,
     due_to: date | None = None,
@@ -97,8 +108,12 @@ def graph(mode: str = "immediate", s=Depends(service)):
 
 
 @router.get("/meetings")
-def meetings(s=Depends(service)):
-    return operations.meetings(s=s)
+def meetings(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=200),
+    s=Depends(service),
+):
+    return operations.meetings(s=s, page=page, page_size=page_size)
 
 
 @router.post("/meetings", status_code=201)
@@ -108,7 +123,7 @@ def create_meeting(body: MeetingInput, s=Depends(service)):
 
 @router.post("/meetings/{id}/analyze")
 async def analyze(id: str, s=Depends(service)):
-    return await operations.analyze(id=id, s=s)
+    return await run_legacy(operations.analyze, id=id, s=s)
 
 
 @router.post("/meetings/{id}/review")
@@ -143,14 +158,52 @@ def replace_edge(id: str, pre: str, body: EdgeInput, s=Depends(service)):
 
 @router.post("/commitments/{id}/followup")
 async def followup(id: str, body: FollowupInput | None = None, s=Depends(service)):
-    return await operations.followup(id=id, body=body, s=s)
+    return await run_legacy(operations.followup, id=id, body=body, s=s)
 
 
 @router.post("/commitments/{id}/analysis")
 async def blocker_analysis(id: str, s=Depends(service)):
-    return await operations.blocker_analysis(id=id, s=s)
+    return await run_legacy(operations.blocker_analysis, id=id, s=s)
 
 
 @router.post("/search")
 async def search(body: SearchInput, s=Depends(service)):
-    return await operations.search(body=body, s=s)
+    return await run_legacy(operations.search, body=body, s=s)
+
+
+@router.get("/ready")
+def readiness():
+    from app.core.database import engine
+    from sqlalchemy import text
+    from fastapi import HTTPException
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(503, "Database unavailable") from None
+    return {"status": "ready"}
+
+
+@router.get("/commitments/{id}/events")
+def history(
+    id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    s=Depends(service),
+):
+    from app.models.entities import Event, Commitment
+    from sqlalchemy import select
+    from sqlalchemy import func
+
+    s.s.get(Commitment, id)
+    query = select(Event).where(Event.commitment_id == id)
+    total = s.s.db.scalar(select(func.count()).select_from(query.subquery()))
+    items = list(
+        s.s.db.scalars(
+            query.order_by(Event.created_at.desc(), Event.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}

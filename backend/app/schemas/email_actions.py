@@ -1,5 +1,6 @@
 from datetime import date
-from pydantic import BaseModel, Field, field_validator
+from app.schemas.base import StrictModel as BaseModel
+from pydantic import Field, field_validator
 
 
 class AcceptProposal(BaseModel):

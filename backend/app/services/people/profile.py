@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models.people import User, Organization
 from app.models.entities import Commitment
-from app.services.social import public_user
+from app.services.people.social import public_user
 
 
 def profile_data(db: Session, actor: User):

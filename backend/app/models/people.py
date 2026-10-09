@@ -1,7 +1,8 @@
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.core.database import Base
+from app.core.security import EncryptedText
 from app.models.entities import uid, now
 
 
@@ -16,6 +17,12 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
     organization_id: Mapped[str] = mapped_column(
         ForeignKey("organizations.id"), index=True
+    )
+    password_hash: Mapped[str] = mapped_column(
+        String(255), default="", server_default=""
+    )
+    timezone: Mapped[str] = mapped_column(
+        String(80), default="UTC", server_default="UTC"
     )
     name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(200), unique=True)
@@ -62,12 +69,16 @@ class Message(Base):
         ForeignKey("conversations.id"), index=True
     )
     sender_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
-    body: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(EncryptedText())
     commitment_id: Mapped[str | None] = mapped_column(
         ForeignKey("commitments.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=now, index=True
+    )
+    read_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
 

@@ -5,8 +5,11 @@ from app.core.database import get_db
 from app.core.auth import current_user, security
 from fastapi.security import HTTPAuthorizationCredentials
 from app.models.people import User
-from app.services import social as operations
-from app.services.social import public_user as public_user
+from app.services.people import social as operations
+from app.services.people.social import public_user as public_user
+from pydantic import Field
+from app.schemas.base import StrictModel
+from app.services.people import chat_inbox
 
 router = APIRouter(prefix="/api", tags=["Users and chat"])
 
@@ -39,13 +42,17 @@ def logout(
 
 @router.get("/users")
 def users(
-    q: str = "",
+    q: str = Query("", max_length=200),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=200),
     team: str = "",
     role: str = "",
     actor: User = Depends(current_user),
     db: Session = Depends(get_db),
 ):
-    return operations.users(q=q, team=team, role=role, actor=actor, db=db)
+    return operations.users(
+        q=q, team=team, role=role, actor=actor, db=db, page=page, page_size=page_size
+    )
 
 
 @router.get("/chat/{peer_id}")
@@ -76,3 +83,32 @@ def attachments(
     peer_id: str, actor: User = Depends(current_user), db: Session = Depends(get_db)
 ):
     return operations.attachments(peer_id=peer_id, actor=actor, db=db)
+
+
+class MarkChatRead(StrictModel):
+    through_id: str = Field(min_length=1, max_length=36)
+
+
+@router.get("/chat-inbox")
+def list_chat_inbox(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=200),
+    actor: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return chat_inbox.inbox(db, actor, page, page_size)
+
+
+@router.post("/chat/{peer_id}/read")
+def read_chat(
+    peer_id: str,
+    body: MarkChatRead,
+    actor: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    return chat_inbox.mark_read(
+        db,
+        actor,
+        peer_id,
+        body.through_id,
+    )

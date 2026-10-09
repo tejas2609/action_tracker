@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.models.integrations import GmailConnection
-from app.services.gmail_integration import aware, cipher, now
+from app.services.email.gmail_integration import aware, cipher, now
 
 MAX_BODY_CHARS = 100_000
 

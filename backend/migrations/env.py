@@ -7,6 +7,7 @@ from app.models import (
     email_actions,
     logs,
     source_actions,
+    security,
 )
 
 if context.is_offline_mode():
@@ -16,7 +17,13 @@ if context.is_offline_mode():
     with context.begin_transaction():
         context.run_migrations()
 else:
-    with engine.connect() as connection:
+    connection = context.config.attributes.get("connection")
+    if connection is not None:
         context.configure(connection=connection, target_metadata=Base.metadata)
         with context.begin_transaction():
             context.run_migrations()
+    else:
+        with engine.connect() as connection:
+            context.configure(connection=connection, target_metadata=Base.metadata)
+            with context.begin_transaction():
+                context.run_migrations()

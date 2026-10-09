@@ -166,7 +166,9 @@ class CommitmentSearch:
 
         result = await self._search(question)
 
-        if not result["results"]:
+        from app.core.config import settings
+
+        if not result["results"] or not settings.search_generate_answer:
             return result
 
         payload = {
@@ -217,7 +219,6 @@ class CommitmentSearch:
         )
 
         try:
-            print(raw)
             filters = SearchFilters.model_validate(raw)
         except ValidationError as exc:
             raise HTTPException(502, "AI returned invalid search filters.") from exc
@@ -281,7 +282,11 @@ class CommitmentSearch:
         # Uses the existing organization-scoped serialization.
         # This data remains local; only compact selected records
         # are sent to the answer-generation call.
-        items = {item["id"]: item for item in self.workflow.listing()}
+        snapshot = self.workflow.snapshot([c.id for c in matches])
+        items = {
+            item["id"]: item
+            for item in self.workflow.listing(include_impact=False, snapshot=snapshot)
+        }
 
         results = [
             items[commitment.id] for commitment in matches if commitment.id in items
@@ -336,9 +341,7 @@ class CommitmentSearch:
             ]
 
         if len(matches) > 1:
-            return None, (
-                "Several users match that name. " "Search using the full name."
-            )
+            return None, ("Several users match that name. Search using the full name.")
 
         if not matches:
             return None, "No matching user in your organization."
@@ -441,7 +444,7 @@ class CommitmentSearch:
             return f"{owner}’s recorded promise is: “{title}”."
 
         if target["status"] in ("completed", "cancelled"):
-            return f"{owner}’s commitment “{title}” " f'is {target["status"]}.'
+            return f"{owner}’s commitment “{title}” is {target['status']}."
 
         pending = [item for item in dependencies if item["status"] != "completed"]
 
@@ -454,7 +457,7 @@ class CommitmentSearch:
             reasons.append("recorded condition: " + target["condition"])
 
         reasons.extend(
-            f'{item["owner"]}’s “{item["title"]}” ' f'is {item["status"]}'
+            f"{item['owner']}’s “{item['title']}” is {item['status']}"
             for item in pending
         )
 

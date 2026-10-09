@@ -2,6 +2,7 @@ import logging
 from time import perf_counter
 from uuid import uuid4
 from starlette.concurrency import run_in_threadpool
+from starlette.background import BackgroundTask
 from app.core.database import SessionLocal
 from app.models.logs import AuthLog, GeneralLog, ErrorLog
 
@@ -53,7 +54,19 @@ async def request_log(request, call_next):
                 ErrorLog(**values, error_type=error_type or ("http_" + str(status)))
             )
         if records:
-            await run_in_threadpool(persist, records)
+            # Response background runs after body delivery. Audit events remain
+            # transactionally persisted by business operations themselves.
+            if "response" in locals():
+                previous = response.background
+
+                async def save_logs():
+                    if previous:
+                        await previous()
+                    await run_in_threadpool(persist, records)
+
+                response.background = BackgroundTask(save_logs)
+            else:
+                logger.warning("Unhandled request failure request_id=%s", identifier)
         logger.info(
             "%s status=%s duration_ms=%.2f request_id=%s",
             action,

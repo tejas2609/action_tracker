@@ -261,11 +261,46 @@
         </section>
         <section>
           <h2>Source & accountability</h2>
-          <p>{{ c.meeting?.title }} · {{ c.meeting?.held_on }}</p>
           @if (c.meeting; as meeting) {
             <p>{{ meeting.title }} · {{ meeting.held_on }}</p>
+          } @else if (c.meeting_id) {
+            <p class="muted">Assigned to a meeting. Meeting details are restricted.</p>
           } @else {
-            <p>Created from an email reviewed by the owner.</p>
+            <p class="muted">This commitment is not assigned to a meeting.</p>
+          }
+          @if (!c.meeting_id && c.can_edit) {
+            @if (meetingsLoading()) {
+              <p class="muted" role="status">Loading public meetings...</p>
+            } @else if (meetingOptions().length) {
+              <label for="commitment-meeting">Public meeting</label>
+              <div class="toolbar meeting-assignment">
+                <select
+                  id="commitment-meeting"
+                  [(ngModel)]="selectedMeetingId"
+                  [disabled]="saving()"
+                >
+                  <option value="">Choose a public meeting</option>
+                  @for (meeting of meetingOptions(); track meeting.id) {
+                    <option [value]="meeting.id">
+                      {{ meeting.title }} · {{ meeting.held_on | date: "MMM d, yyyy" }}
+                    </option>
+                  }
+                </select>
+                <button
+                  class="primary"
+                  [disabled]="!selectedMeetingId || saving()"
+                  (click)="assignMeeting()"
+                >Assign to meeting</button>
+              </div>
+            } @else if (!meetingError()) {
+              <p class="muted">No public meetings are available.</p>
+            }
+            @if (meetingError()) {
+              <p role="alert">{{ meetingError() }}</p>
+              <button [disabled]="saving() || meetingsLoading()" (click)="loadMeetingOptions()">
+                Refresh meetings
+              </button>
+            }
           }
           <blockquote>{{ c.source_statement }}</blockquote>
           <div class="timeline">

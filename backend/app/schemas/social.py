@@ -1,5 +1,15 @@
+from app.schemas.base import StrictModel
+from typing import Annotated
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import (
+    Field,
+    ConfigDict,
+    StringConstraints,
+)
+
+
+class BaseModel(StrictModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class AttachmentMetadata(BaseModel):
@@ -17,7 +27,9 @@ class Login(BaseModel):
 
 class PasswordLogin(BaseModel):
     username: str = Field(min_length=1, max_length=120)
-    password: str = Field(min_length=1, max_length=200)
+    password: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(
+        min_length=1, max_length=200
+    )
 
 
 class MessageInput(BaseModel):

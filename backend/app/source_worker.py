@@ -1,35 +1,47 @@
-import asyncio
-import logging
-
+import asyncio, logging
+from starlette.concurrency import run_in_threadpool
 from app.ai.provider import get_provider
-from app.core.database import SessionLocal
-from app.services.source_actions import process_next
+from app.core.config import settings
+from app.core.database import SessionLocal, engine
+from app.services.sources.source_actions import claim_next, execute_claim
+
+
+def claim():
+    with SessionLocal() as db:
+        return claim_next(db)
+
+
+async def consumer():
+    while True:
+        try:
+            job = await run_in_threadpool(claim)
+            if job:
+                await run_in_threadpool(
+                    lambda: asyncio.run(
+                        execute_claim(SessionLocal, job, get_provider())
+                    )
+                )
+            else:
+                await asyncio.sleep(2)
+        except Exception as error:
+            logging.warning("Source consumer error: %s", type(error).__name__)
+            await asyncio.sleep(2)
 
 
 async def main():
-    ai = get_provider()
-    logger = logging.getLogger(__name__)
+    from app.main import validate_configuration
 
+    validate_configuration()
+    if engine.dialect.name != "postgresql":
+        raise RuntimeError("Workers require PostgreSQL")
     try:
-        while True:
-            try:
-                with SessionLocal() as db:
-                    async with asyncio.timeout(90):
-                        worked = await process_next(db, ai)
-
-            except Exception as error:
-                logger.warning(
-                    "Source worker failed: %s",
-                    type(error).__name__,
-                )
-                worked = False
-
-            await asyncio.sleep(0.1 if worked else 2)
-
+        async with asyncio.TaskGroup() as group:
+            for _ in range(settings.worker_concurrency):
+                group.create_task(consumer())
     finally:
-        await ai.close()
+        engine.dispose()
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=settings.log_level)
     asyncio.run(main())

@@ -8,3 +8,4 @@ __pycache__/
 *.zip
 .angular/
 backend_original/
+backend_original_v2/

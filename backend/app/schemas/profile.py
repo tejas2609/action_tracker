@@ -1,4 +1,5 @@
-from pydantic import BaseModel, Field
+from app.schemas.base import StrictModel as BaseModel
+from pydantic import Field
 
 
 class ProfileUpdate(BaseModel):

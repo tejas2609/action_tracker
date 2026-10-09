@@ -1,3 +1,4 @@
+from app.core.async_bridge import run_legacy
 import logging
 
 import httpx
@@ -11,7 +12,7 @@ from app.core.auth import current_user, security
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.people import User
-from app.services import gmail_integration as gmail
+from app.services.email import gmail_integration as gmail
 
 router = APIRouter(
     prefix="/api/integrations/gmail",
@@ -71,7 +72,8 @@ async def callback(
     db: Session = Depends(get_db),
 ):
     try:
-        result = await gmail.complete(
+        result = await run_legacy(
+            gmail.complete,
             db,
             state,
             request.cookies.get(gmail.COOKIE_NAME, ""),
@@ -124,7 +126,7 @@ async def remove(
     response.headers["Cache-Control"] = "no-store"
 
     try:
-        return await gmail.disconnect(db, actor)
+        return await run_legacy(gmail.disconnect, db, actor)
 
     except httpx.HTTPError:
         raise HTTPException(
@@ -135,5 +137,5 @@ async def remove(
     except InvalidToken:
         raise HTTPException(
             503,
-            "Stored credentials cannot be decrypted. " "Check INTEGRATION_TOKEN_KEY.",
+            "Stored credentials cannot be decrypted. Check INTEGRATION_TOKEN_KEY.",
         ) from None

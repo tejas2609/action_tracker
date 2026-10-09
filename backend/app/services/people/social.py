@@ -1,13 +1,11 @@
-import secrets, hashlib
-from datetime import datetime, timedelta, timezone
+import hashlib
 from fastapi import HTTPException
 from sqlalchemy import select, or_, and_
-from app.services.messaging import peer_user, conversation
+from app.services.people.messaging import peer_user, conversation
 from app.repositories.people import PeopleRepository
-from app.core.config import settings
-from app.models.people import User, LoginSession, Message
+from app.models.people import User, Message
 from app.models.entities import Commitment, Event
-from app.services.chat_source import enqueue_chat
+from app.services.sources.chat_source import enqueue_chat
 
 
 def public_user(u):
@@ -38,32 +36,9 @@ def capabilities(actor=None):
 
 
 def password_login(body, db=None, request=None):
-    if not settings.demo_login_enabled:
-        raise HTTPException(403, "Development login is disabled.")
-    username = body.username.strip().lower()
-    if not username or not secrets.compare_digest(body.password, "pass"):
-        raise HTTPException(401, "Invalid username or password.")
-    matches = [
-        user
-        for user in PeopleRepository(db).active_users()
-        if user.name.strip().lower() == username
-    ]
-    if len(matches) != 1:
-        raise HTTPException(401, "Invalid username or password.")
-    user = matches[0]
-    if request is not None:
-        request.state.user_id = user.id
-        request.state.organization_id = user.organization_id
-    token = secrets.token_urlsafe(32)
-    db.add(
-        LoginSession(
-            token_hash=hashlib.sha256(token.encode()).hexdigest(),
-            user_id=user.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=8),
-        )
-    )
-    db.commit()
-    return {"token": token, "user": public_user(user)}
+    from app.services.people.authentication import AuthenticationService
+
+    return AuthenticationService(db).login(body, request)
 
 
 def me(actor=None):
@@ -78,25 +53,44 @@ def logout(actor=None, db=None, credentials=None):
     return {"ok": True}
 
 
-def users(q="", team="", role="", actor=None, db=None):
+def users(q="", team="", role="", actor=None, db=None, page=1, page_size=100):
+    from sqlalchemy import func
+
+    query = select(User).where(
+        User.organization_id == actor.organization_id, User.active.is_(True)
+    )
+    if q:
+        query = query.where(
+            or_(
+                func.lower(User.name).contains(q.casefold(), autoescape=True),
+                func.lower(User.email).contains(q.casefold(), autoescape=True),
+            )
+        )
+    if team:
+        query = query.where(User.team == team)
+    if role:
+        query = query.where(User.role == role)
+    total = db.scalar(select(func.count()).select_from(query.subquery()))
     rows = list(
         db.scalars(
-            select(User)
-            .where(User.organization_id == actor.organization_id, User.active == True)
-            .order_by(User.name)
+            query.order_by(User.name, User.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
         )
     )
-    filtered = [
-        u
-        for u in rows
-        if (not q or q.casefold() in (u.name + " " + u.email).casefold())
-        and (not team or u.team == team)
-        and (not role or u.role == role)
-    ]
+    facets = (
+        select(User.team, User.role)
+        .where(User.organization_id == actor.organization_id, User.active.is_(True))
+        .distinct()
+    )
+    values = list(db.execute(facets))
     return {
-        "items": [public_user(u) for u in filtered],
-        "teams": sorted({u.team for u in rows}),
-        "roles": sorted({u.role for u in rows}),
+        "items": [public_user(u) for u in rows],
+        "teams": sorted({v.team for v in values}),
+        "roles": sorted({v.role for v in values}),
+        "total": total,
+        "page": page,
+        "page_size": page_size,
     }
 
 
@@ -148,7 +142,9 @@ def send(peer_id, body, actor=None, db=None):
         raise HTTPException(422, "Message cannot be blank")
     if body.commitment_id:
         c = db.get(Commitment, body.commitment_id)
-        if not c or c.organization_id != actor.organization_id or c.status == "review":
+        from app.core.permissions import can_read
+
+        if not can_read(actor, c) or c.status == "review":
             raise HTTPException(404, "Commitment not found")
     conv = conversation(db, actor, peer)
     msg = Message(

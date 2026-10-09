@@ -16,7 +16,13 @@ options = (
         pool_timeout=settings.database_pool_timeout,
     )
 )
-engine = create_engine(settings.database_url, pool_pre_ping=True, **options)
+if settings.database_url.startswith("postgresql"):
+    options["connect_args"] = {
+        "options": "-c statement_timeout=15000 -c lock_timeout=10000"
+    }
+engine = create_engine(
+    settings.database_url, pool_pre_ping=True, hide_parameters=True, **options
+)
 SessionLocal = sessionmaker(engine, expire_on_commit=False)
 
 
@@ -27,3 +33,5 @@ def get_db():
         except Exception:
             db.rollback()
             raise
+        finally:
+            db.rollback()

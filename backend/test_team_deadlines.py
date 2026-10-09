@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base
 from app.models.people import Organization, User
 from app.repositories.store import Store
-from app.services.team_deadlines import team_missed_deadlines
+from app.services.commitments.team_deadlines import team_missed_deadlines
 
 
 @pytest.fixture

@@ -1,12 +1,9 @@
-from uuid import uuid4
-
 from fastapi import HTTPException
 from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert
 
 from app.core.database import engine
 from app.models.entities import Commitment, Event
-from app.models.people import User
 from app.models.integrations import GmailConnection
 from app.models.email_actions import (
     CommitmentEmail,
@@ -14,13 +11,8 @@ from app.models.email_actions import (
     EmailProcessing,
     EmailSyncState,
 )
-from app.services.gmail_integration import now
-from app.services.gmail_mailbox import GmailMailbox
-from app.services.email_classifier import (
-    candidates,
-    classify,
-    proposal_candidates,
-)
+from app.services.email.gmail_integration import now
+from app.services.email.gmail_mailbox import GmailMailbox
 
 BATCH_SIZE = 5
 
@@ -171,7 +163,7 @@ async def scan(db, actor, ai):
         key = "gmail-scan:" + actor.id
 
         locked = lock_connection.execute(
-            text("SELECT pg_try_advisory_lock(" "hashtextextended(:key, 0))"),
+            text("SELECT pg_try_advisory_lock(hashtextextended(:key, 0))"),
             {"key": key},
         ).scalar_one()
 
@@ -192,7 +184,7 @@ async def scan(db, actor, ai):
             db.rollback()
 
             lock_connection.execute(
-                text("SELECT pg_advisory_unlock(" "hashtextextended(:key, 0))"),
+                text("SELECT pg_advisory_unlock(hashtextextended(:key, 0))"),
                 {"key": key},
             )
 
@@ -207,16 +199,12 @@ def evidence_in_body(evidence: str, body: str) -> bool:
 
 
 async def scan_locked(db, actor, ai):
-    result = {
-        "busy": False,
-        "processed": 0,
-        "proposed": 0,
-        "attached": 0,
-    }
+    """Gmail ingestion only; source_worker performs shared classification."""
+    from app.services.sources.source_ingestion import SourceIngestionService
 
+    result = {"busy": False, "processed": 0, "proposed": 0, "attached": 0, "queued": 0}
     async with GmailMailbox(db, actor.id) as mailbox:
         await collect_page(db, actor, mailbox)
-
         queued = list(
             db.scalars(
                 select(EmailProcessing)
@@ -229,228 +217,50 @@ async def scan_locked(db, actor, ai):
                 .limit(BATCH_SIZE)
             )
         )
-
-        for queued_message in queued:
+        for row in queued:
+            db.commit()  # no connection held while fetching the message
             try:
-                email = await mailbox.message(queued_message.message_id)
-                print(email)
+                email = await mailbox.message(row.message_id)
             except HTTPException as error:
                 if error.status_code != 404:
                     raise
-
-                queued_message.state = "unavailable"
+                row.state = "unavailable"
                 db.commit()
                 continue
-
-            labels = set(email["labels"])
-
-            if labels & {"SENT", "DRAFT", "SPAM", "TRASH"}:
-                queued_message.state = "ignored"
-                db.commit()
-                continue
-
-            if not email["body_text"]:
-                queued_message.state = "ignored"
-                db.commit()
-                continue
-
-            rows = candidates(db, actor, email)
-            [
-                print("Email matching candidates:", c.id, c.title, c.owner_id)
-                for c in rows
-            ]
-
-            decision = await classify(
-                ai,
-                actor,
-                mailbox.email,
-                email,
-                rows,
-            )
-            if decision.new_tasks:
-                expanded_rows = proposal_candidates(
-                    db,
-                    actor,
-                    decision.new_tasks,
-                    rows,
-                )
-
-                original_ids = {commitment.id for commitment in rows}
-                expanded_ids = {commitment.id for commitment in expanded_rows}
-
-                # Only make another AI call when the targeted lookup found
-                # commitments that the first classification did not see.
-                if expanded_ids != original_ids:
-                    rows = expanded_rows
-
-                    decision = await classify(
-                        ai,
-                        actor,
-                        mailbox.email,
-                        email,
-                        rows,
-                    )
-            print("I am here", decision)
-            # Re-check the connection after the AI request.
-            connection = db.scalar(
-                select(GmailConnection)
-                .where(GmailConnection.user_id == actor.id)
-                .execution_options(populate_existing=True)
-                .with_for_update()
-            )
-
-            user = db.get(User, actor.id, populate_existing=True)
-
             if (
-                not connection
-                or connection.google_sub != mailbox.google_sub
-                or not user
-                or not user.active
+                set(email["labels"]) & {"SENT", "DRAFT", "SPAM", "TRASH"}
+                or not email["body_text"].strip()
             ):
-                raise HTTPException(
-                    409,
-                    "Gmail connection or application user changed.",
-                )
-
-            allowed_ids = {commitment.id for commitment in rows}
-            body = email["body_text"][:12000]
-
-            linked_ids = set()
-            print("reached here", decision)
-            for related in decision.related:
-                if (
-                    related.confidence < 0.90
-                    or related.commitment_id not in allowed_ids
-                    or related.commitment_id in linked_ids
-                    or not evidence_in_body(related.evidence, body)
-                ):
-                    continue
-
-                commitment = db.scalar(
-                    select(Commitment)
-                    .where(
-                        Commitment.id == related.commitment_id,
-                        Commitment.owner_id == actor.id,
-                        Commitment.organization_id == actor.organization_id,
-                    )
-                    .with_for_update()
-                )
-
-                if not commitment:
-                    continue
-
-                if attach(
-                    db,
+                row.state = "ignored"
+            else:
+                SourceIngestionService(db).enqueue(
+                    "gmail",
+                    row.message_id,
                     actor,
-                    commitment,
-                    mailbox.google_sub,
-                    email,
-                    related.description,
-                ):
-                    result["attached"] += 1
-
-                linked_ids.add(commitment.id)
-
-            proposed_titles = set()
-            print("reached here too", decision)
-            for task in decision.new_tasks:
-                normalized = task.title.strip().casefold()
-                evidence_matches = evidence_in_body(task.evidence, body)
-
-                if (
-                    task.confidence < 0.85
-                    or not evidence_matches
-                    or normalized in proposed_titles
-                ):
-                    print(
-                        "Email proposal skipped:",
-                        {
-                            "confidence": task.confidence,
-                            "evidence_matches": evidence_matches,
-                            "duplicate_in_batch": normalized in proposed_titles,
+                    {
+                        "subject": email["subject"][:500],
+                        "thread_id": email["thread_id"],
+                        "google_sub": mailbox.google_sub,
+                        "sender": {
+                            "id": email["sender"][:255],
+                            "name": email["sender"][:255],
+                            "email": email["sender"][:255],
                         },
-                    )
-                    continue
-
-                # Keep your existing duplicate check and database insertion below.
-                existing_matches = list(
-                    db.scalars(
-                        select(Commitment)
-                        .where(
-                            Commitment.owner_id == actor.id,
-                            Commitment.organization_id == actor.organization_id,
-                            Commitment.status.in_(["active", "review"]),
-                            func.lower(func.trim(Commitment.title))
-                            == task.title.strip().lower(),
-                        )
-                        .with_for_update()
-                    )
+                        "recipient": {
+                            "id": actor.id,
+                            "name": actor.name,
+                            "email": actor.email,
+                        },
+                        "sent_at": email["received_at"],
+                        "timezone": actor.timezone,
+                        "body": email["body_text"][:12000],
+                        "context": [],
+                    },
                 )
-
-                if existing_matches:
-                    # An identical active/review title is not saved as another task.
-                    # Only auto-attach when the match is unambiguous.
-                    if len(existing_matches) == 1:
-                        existing = existing_matches[0]
-
-                        if existing.id not in linked_ids:
-                            if attach(
-                                db,
-                                actor,
-                                existing,
-                                mailbox.google_sub,
-                                email,
-                                task.description,
-                            ):
-                                result["attached"] += 1
-
-                            linked_ids.add(existing.id)
-
-                    proposed_titles.add(normalized)
-                    continue
-                commitment = Commitment(
-                    id=str(uuid4()),
-                    organization_id=actor.organization_id,
-                    title=task.title.strip(),
-                    owner=actor.name,
-                    owner_id=actor.id,
-                    due_date=task.due_date,
-                    status="review",
-                    progress=0,
-                    condition="",
-                    condition_met=False,
-                    blocker="",
-                    # Derived context, not a stored email body.
-                    source_statement=task.description,
-                    meeting_id=None,
-                )
-
-                db.add(commitment)
-                db.flush()
-
-                db.add(
-                    EmailOrigin(
-                        commitment_id=commitment.id,
-                        user_id=actor.id,
-                        google_sub=mailbox.google_sub,
-                        message_id=email["id"],
-                        thread_id=email["thread_id"],
-                        subject=email["subject"],
-                        sender=email["sender"],
-                        received_at=email["received_at"],
-                        description=task.description,
-                    )
-                )
-
-                proposed_titles.add(normalized)
-                result["proposed"] += 1
-
-            queued_message.state = "processed"
-
+                row.state = "processed"
+                result["queued"] += 1
             db.commit()
-
             result["processed"] += 1
-
     return result
 
 
@@ -572,12 +382,14 @@ def reject(db, actor, commitment_id):
         review=True,
     )
 
-    # Remove related events if another email attached to this proposal.
-    from sqlalchemy import delete
-
-    db.execute(delete(Event).where(Event.commitment_id == commitment.id))
-
-    db.delete(commitment)
+    commitment.status = "cancelled"
+    db.add(
+        Event(
+            commitment_id=commitment.id,
+            kind="cancelled",
+            message="Recipient rejected email proposal",
+        )
+    )
     db.commit()
 
     return {"ok": True}

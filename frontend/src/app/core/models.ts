@@ -47,7 +47,7 @@ export interface Commitment {
     message: string;
     created_at: string;
   }[];
-  meeting?: Meeting | null;
+  meeting?: Pick<Meeting, "id" | "title" | "held_on"> | null;
 }
 export interface Finding {
   kind: string;
@@ -93,4 +93,9 @@ export interface ChatPage {
   items: ChatMessage[];
   has_more: boolean;
   before: string | null;
+}
+export interface ChatInboxUser extends User {
+  conversation_id: string | null;
+  last_message_at: string | null;
+  unread_count: number;
 }

@@ -4,10 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import current_user
 from app.models.people import User
-from app.models.entities import Meeting
-from fastapi import HTTPException
-from app.services.meeting_deletion import deletion_plan, delete_meeting
-from app.services.meeting_access_policy import require_workflow_access
+from app.services.meetings.meeting_deletion import deletion_plan, delete_meeting
+from app.services.meetings.meeting_access_policy import require_workflow_access
 
 router = APIRouter(prefix="/api", tags=["Meeting deletion"])
 

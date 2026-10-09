@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.models.entities import Commitment, Meeting, Dependency, Event
-from app.services.meeting_access_policy import (
+from app.services.meetings.meeting_access_policy import (
     readable_condition,
     require_read,
 )
@@ -13,7 +13,7 @@ class Store:
         self.db = db
         self.actor = actor
 
-    def all(self, model):
+    def all(self, model, limit=None):
         query = select(model)
 
         if self.actor:
@@ -48,6 +48,8 @@ class Store:
                     Commitment.status != "review",
                 )
 
+        if limit is not None:
+            query = query.limit(limit)
         return list(self.db.scalars(query))
 
     def get(self, model, id):
@@ -99,7 +101,8 @@ class Store:
             self.db.scalars(
                 select(Event)
                 .where(Event.commitment_id == commitment_id)
-                .order_by(Event.created_at, Event.id)
+                .order_by(Event.created_at.desc(), Event.id.desc())
+                .limit(200)
             )
         )
 

@@ -4,12 +4,14 @@ import asyncio
 import json
 import logging
 from functools import lru_cache
+from threading import BoundedSemaphore
 from typing import Protocol
 import httpx
 from fastapi import HTTPException
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+AI_SLOTS = BoundedSemaphore(settings.ai_concurrency)
 
 
 class AIProvider(Protocol):
@@ -40,10 +42,21 @@ class CompatibleProvider:
             base += "/openai/v1"
         elif settings.ai_provider == "openai" and not base.endswith("/v1"):
             base += "/v1"
+        encoded = json.dumps(
+            payload, default=str, ensure_ascii=False, separators=(",", ":")
+        )
+        if len(encoded) > settings.ai_max_input_characters:
+            raise HTTPException(
+                422, "AI input exceeds the configured budget; shorten the content"
+            )
         body = {
             "model": settings.ai_model,
             "temperature": 0,
-            "max_tokens": settings.ai_max_output_tokens,
+            "max_tokens": min(
+                settings.ai_max_output_tokens, settings.ai_classification_output_tokens
+            )
+            if "new_tasks" in instruction
+            else settings.ai_max_output_tokens,
             "messages": [
                 {
                     "role": "system",
@@ -72,7 +85,16 @@ class CompatibleProvider:
                     json=body,
                 )
             response.raise_for_status()
-            choice = response.json()["choices"][0]
+            result_body = response.json()
+            usage = result_body.get("usage", {})
+            logger.info(
+                "AI call provider=%s model=%s input_tokens=%s output_tokens=%s",
+                settings.ai_provider,
+                settings.ai_model,
+                usage.get("prompt_tokens"),
+                usage.get("completion_tokens"),
+            )
+            choice = result_body["choices"][0]
             if choice.get("finish_reason") == "length":
                 raise HTTPException(
                     502,
@@ -106,6 +128,32 @@ class CompatibleProvider:
 LangChainProvider = CompatibleProvider
 
 
+class RequestProvider:
+    """Operation-local clients do not cross thread/event-loop boundaries."""
+
+    async def json(self, instruction, payload):
+        # One process-wide budget, safe across compatibility worker event loops.
+        # Nonblocking acquisition avoids cancellation leaking an acquired slot.
+        deadline = asyncio.get_running_loop().time() + settings.ai_timeout_seconds
+        while not AI_SLOTS.acquire(blocking=False):
+            if asyncio.get_running_loop().time() >= deadline:
+                raise HTTPException(503, "AI capacity is busy; retry shortly")
+            await asyncio.sleep(0.05)
+        provider = None
+        try:
+            provider = CompatibleProvider()
+            return await provider.json(instruction, payload)
+        finally:
+            try:
+                if provider:
+                    await provider.close()
+            finally:
+                AI_SLOTS.release()
+
+    async def close(self):
+        pass
+
+
 @lru_cache(maxsize=1)
 def get_provider() -> AIProvider:
-    return CompatibleProvider()
+    return RequestProvider()

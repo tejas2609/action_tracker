@@ -1,7 +1,10 @@
 import { ChatService } from "../chat-panel/chat.service";
 import { SessionService } from "../../core/session.service";
 import { UsersService } from "../../core/users.service";
-import { CommitmentsService } from "../../features/commitments/commitments.service";
+import {
+  CommitmentsService,
+  PublicMeetingOption,
+} from "../../features/commitments/commitments.service";
 import {
   Component,
   inject,
@@ -38,6 +41,11 @@ export class CommitmentDrawer implements OnDestroy {
   panels = inject(Panels);
   item = signal<Commitment | null>(null);
   candidates = signal<Commitment[]>([]);
+  meetingOptions = signal<PublicMeetingOption[]>([]);
+  meetingsLoading = signal(false);
+  meetingError = signal("");
+  selectedMeetingId = "";
+  private meetingsLoaded = false;
   loadError = signal("");
   analysisError = signal("");
   analyzing = signal(false);
@@ -87,6 +95,11 @@ export class CommitmentDrawer implements OnDestroy {
         this.analyzedRevision = "";
         this.analysisError.set("");
         this.replacements = {};
+        this.meetingOptions.set([]);
+        this.meetingsLoading.set(false);
+        this.meetingError.set("");
+        this.selectedMeetingId = "";
+        this.meetingsLoaded = false;
         this.previousFocus = document.activeElement as HTMLElement;
         document.body.style.overflow = "hidden";
         setTimeout(
@@ -119,6 +132,11 @@ export class CommitmentDrawer implements OnDestroy {
       if (epoch !== this.epoch) return;
       this.item.set(c);
       this.loadError.set("");
+      if (
+        !c.meeting_id && c.can_edit &&
+        !this.meetingsLoaded && !this.meetingsLoading()
+      )
+        void this.loadMeetingOptions();
       if (!this.recipientId) {
         this.recipientId =
           c.owner_id !== this.session.user()?.id
@@ -154,6 +172,49 @@ export class CommitmentDrawer implements OnDestroy {
     } finally {
       this.fetching = false;
       if (epoch !== this.epoch && this.current) void this.load();
+    }
+  }
+  async loadMeetingOptions() {
+    const epoch = this.epoch;
+    this.meetingsLoading.set(true);
+    this.meetingError.set("");
+    // Mark this attempt to prevent polling from repeatedly retrying a failed request.
+    this.meetingsLoaded = true;
+    try {
+      const meetings = await this.commitmentData.publicMeetingOptions();
+      if (epoch === this.epoch) this.meetingOptions.set(meetings);
+    } catch {
+      if (epoch === this.epoch)
+        this.meetingError.set("Public meetings could not load. Please retry.");
+    } finally {
+      if (epoch === this.epoch) this.meetingsLoading.set(false);
+    }
+  }
+  async assignMeeting() {
+    const c = this.item(),
+      epoch = this.epoch;
+    if (!c?.can_edit || c.meeting_id || !this.selectedMeetingId || this.saving()) return;
+    this.saving.set(true);
+    this.meetingError.set("");
+    try {
+      const result = await this.commitmentData.assignMeeting(
+        c.id, this.selectedMeetingId,
+      );
+      this.api.changed();
+      if (epoch === this.epoch) {
+        this.item.update((item) =>
+          item ? { ...item, meeting_id: result.meeting_id } : item,
+        );
+        this.selectedMeetingId = "";
+        await this.load();
+      }
+    } catch (error) {
+      if (epoch === this.epoch) {
+        const detail = (error as { error?: { detail?: string } }).error?.detail;
+        this.meetingError.set(detail || "Commitment could not be assigned. Please retry.");
+      }
+    } finally {
+      this.saving.set(false);
     }
   }
   async refreshAnalysis() {

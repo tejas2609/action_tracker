@@ -1,6 +1,11 @@
+from app.schemas.base import StrictModel
 from datetime import date
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import Field, ConfigDict
+
+
+class BaseModel(StrictModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class MeetingInput(BaseModel):
@@ -37,7 +42,7 @@ class Finding(BaseModel):
     source_line: int | None = Field(default=None, ge=1)
     statement: str = Field(default="source", min_length=1)
     due_date: date | None = None
-    condition: str = ""
+    condition: str = Field(default="", max_length=2000)
     confidence: float = Field(default=0.5, ge=0, le=1)
     explanation: str = ""
     existing_id: str | None = None
@@ -56,7 +61,7 @@ class ReviewItem(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     owner: str = Field(min_length=1, max_length=120)
     due_date: date | None = None
-    condition: str = ""
+    condition: str = Field(default="", max_length=2000)
     existing_id: str | None = None
     depends_on_indices: list[int] = Field(default_factory=list, max_length=30)
     prerequisite_ids: list[str] = Field(default_factory=list, max_length=30)
@@ -73,9 +78,13 @@ class Update(BaseModel):
     due_date: date | None = None
     status: Literal["active", "completed", "cancelled"] | None = None
     progress: int | None = Field(default=None, ge=0, le=100)
-    condition: str | None = None
+    condition: str | None = Field(default=None, max_length=2000)
     condition_met: bool | None = None
-    blocker: str | None = None
+    blocker: str | None = Field(default=None, max_length=2000)
+
+
+class AssignMeeting(BaseModel):
+    meeting_id: str = Field(min_length=1, max_length=36)
 
 
 class EdgeInput(BaseModel):

@@ -1,17 +1,21 @@
 import {
-  ChangeDetectionStrategy,
   Component,
-  DestroyRef,
-  computed,
+  ChangeDetectionStrategy,
+  ElementRef,
+  OnDestroy,
+  ViewChild,
   inject,
   signal,
 } from "@angular/core";
-import { DatePipe } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { ChatMessage, User } from "../../core/models";
-import { SessionService } from "../../core/session.service";
-import { UsersService } from "../../core/users.service";
+import { DatePipe } from "@angular/common";
+
 import { ChatService } from "../../shared/chat-panel/chat.service";
+import { SessionService } from "../../core/session.service";
+import {
+  ChatInboxUser,
+  ChatMessage,
+} from "../../core/models";
 
 @Component({
   selector: "app-chat",
@@ -21,213 +25,188 @@ import { ChatService } from "../../shared/chat-panel/chat.service";
   templateUrl: "./chat.component.html",
   styleUrl: "./chat.component.scss",
 })
-export class Chat {
-  readonly session = inject(SessionService);
+export class Chat implements OnDestroy {
+  private chat = inject(ChatService);
+  session = inject(SessionService);
 
-  private readonly usersService = inject(UsersService);
-  private readonly chatService = inject(ChatService);
-  private readonly destroyRef = inject(DestroyRef);
+  users = signal<ChatInboxUser[]>([]);
+  selected = signal<ChatInboxUser | null>(null);
+  messages = signal<ChatMessage[]>([]);
+  error = signal("");
+  sending = signal(false);
+  hasMore = signal(false);
 
-  readonly search = signal("");
-  readonly peer = signal<User | null>(null);
-  readonly messages = signal<ChatMessage[]>([]);
-  readonly draft = signal("");
-  readonly error = signal("");
-  readonly directoryLoading = signal(true);
-  readonly loading = signal(false);
-  readonly sending = signal(false);
-  readonly loadingOlder = signal(false);
-  readonly hasMore = signal(false);
+  draft = "";
+  page = signal(1);
+  total = signal(0);
 
-  readonly users = computed(() => {
-    const query = this.search().trim().toLowerCase();
-    const currentId = this.session.user()?.id;
-
-    return this.usersService.users()
-      .filter(user =>
-        user.active &&
-        user.id !== currentId &&
-        `${user.name} ${user.email} ${user.team}`
-          .toLowerCase()
-          .includes(query)
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
-  });
-
-  private generation = 0;
   private before: string | null = null;
-  private refreshing = false;
+  private busy = false;
   private destroyed = false;
+  private timer: ReturnType<typeof setInterval>;
+
+  @ViewChild("scrollArea")
+  scroll?: ElementRef<HTMLElement>;
 
   constructor() {
-    void this.loadUsers();
+    void this.refresh();
 
-    const timer = setInterval(() => {
+    this.timer = setInterval(() => {
       if (!document.hidden) void this.refresh();
-    }, 5000);
-
-    this.destroyRef.onDestroy(() => {
-      this.destroyed = true;
-      this.generation++;
-      clearInterval(timer);
-    });
+    }, 3000);
   }
 
-  async loadUsers(): Promise<void> {
-    this.directoryLoading.set(true);
+  choose(user: ChatInboxUser) {
+    if (this.selected()?.id === user.id) return;
 
-    try {
-      await this.usersService.loadUsers();
-    } catch {
-      if (!this.destroyed) {
-        this.error.set("Could not load users. Please retry.");
-      }
-    } finally {
-      if (!this.destroyed) this.directoryLoading.set(false);
-    }
-  }
-
-  async selectUser(user: User): Promise<void> {
-    if (this.peer()?.id === user.id) return;
-
-    const generation = ++this.generation;
-
-    this.peer.set(user);
+    this.selected.set(user);
     this.messages.set([]);
-    this.draft.set("");
-    this.error.set("");
     this.hasMore.set(false);
     this.before = null;
-    this.loading.set(true);
+    this.draft = "";
+
+    void this.refresh();
+  }
+
+  async changePage(direction: number) {
+    const next = this.page() + direction;
+    if (next < 1 || (next - 1) * 100 >= this.total()) return;
+
+    this.page.set(next);
+    await this.refresh();
+  }
+
+  private merge(items: ChatMessage[]) {
+    const merged = new Map(
+      [...this.messages(), ...items].map((m) => [m.id, m]),
+    );
+
+    this.messages.set(
+      [...merged.values()].sort(
+        (a, b) =>
+          a.created_at.localeCompare(b.created_at) ||
+          a.id.localeCompare(b.id),
+      ),
+    );
+  }
+
+  async refresh() {
+    if (this.busy || this.destroyed) return;
+    this.busy = true;
 
     try {
-      const page = await this.chatService.list(user.id);
+      const inbox = await this.chat.inbox(this.page());
+      if (this.destroyed) return;
 
-      if (generation !== this.generation) return;
+      this.users.set(inbox.items);
+      this.total.set(inbox.total);
 
-      this.messages.set(page.items);
-      this.before = page.before;
-      this.hasMore.set(page.has_more);
+      const peer = this.selected();
+      if (!peer) {
+        this.error.set("");
+        return;
+      }
+
+      const currentId = peer.id;
+      const result = await this.chat.list(currentId);
+
+      if (
+        this.destroyed ||
+        this.selected()?.id !== currentId
+      ) return;
+
+      const firstLoad = this.messages().length === 0;
+      this.merge(result.items);
+
+      if (firstLoad) {
+        this.before = result.before;
+        this.hasMore.set(result.has_more);
+        this.bottom();
+      }
+
+      // Allow the selected conversation to render before marking it read.
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => resolve()),
+      );
+
+      const last = result.items.at(-1);
+
+      if (
+        last &&
+        !document.hidden &&
+        !this.destroyed &&
+        this.selected()?.id === currentId
+      ) {
+        await this.chat.markRead(currentId, last.id);
+
+        // Refresh from the server instead of forcing the count to zero:
+        // another message may have arrived after the read cursor.
+        const updated = await this.chat.inbox(this.page());
+        if (!this.destroyed) {
+          this.users.set(updated.items);
+          this.total.set(updated.total);
+        }
+      }
+
+      this.error.set("");
     } catch {
-      if (generation === this.generation) {
-        this.error.set("Could not load this conversation.");
+      if (!this.destroyed) {
+        this.error.set("Could not refresh chat. Retrying automatically.");
       }
     } finally {
-      if (generation === this.generation) this.loading.set(false);
+      this.busy = false;
     }
   }
 
-  private merge(items: ChatMessage[]): void {
-    this.messages.update(current => {
-      const indexed = new Map(
-        current.map(message => [message.id, message])
-      );
+  async older() {
+    const peer = this.selected();
+    if (!peer || !this.before) return;
 
-      for (const message of items) indexed.set(message.id, message);
+    try {
+      const result = await this.chat.list(peer.id, this.before);
 
-      return [...indexed.values()].sort((a, b) =>
-        a.created_at.localeCompare(b.created_at) ||
-        a.id.localeCompare(b.id)
-      );
+      if (this.destroyed || this.selected()?.id !== peer.id) return;
+
+      this.merge(result.items);
+      this.before = result.before;
+      this.hasMore.set(result.has_more);
+    } catch {
+      this.error.set("Could not load older messages.");
+    }
+  }
+
+  async send() {
+    const peer = this.selected();
+    const body = this.draft.trim();
+
+    if (!peer || !body || this.sending()) return;
+
+    this.sending.set(true);
+
+    try {
+      await this.chat.send(peer.id, body, undefined, true);
+
+      if (this.selected()?.id === peer.id) {
+        this.draft = "";
+        await this.refresh();
+        this.bottom();
+      }
+    } catch {
+      this.error.set("Message was not sent. Your draft is retained.");
+    } finally {
+      this.sending.set(false);
+    }
+  }
+
+  private bottom() {
+    requestAnimationFrame(() => {
+      const element = this.scroll?.nativeElement;
+      if (element) element.scrollTop = element.scrollHeight;
     });
   }
 
-  async refresh(): Promise<void> {
-    const user = this.peer();
-
-    if (
-      !user ||
-      this.destroyed ||
-      this.refreshing ||
-      this.loading() ||
-      this.loadingOlder()
-    ) return;
-
-    const generation = this.generation;
-    this.refreshing = true;
-
-    try {
-      const page = await this.chatService.list(user.id);
-
-      if (generation !== this.generation) return;
-
-      this.merge(page.items);
-
-      // Initialise pagination after an initial loading failure.
-      if (!this.before) {
-        this.before = page.before;
-        this.hasMore.set(page.has_more);
-      }
-    } catch {
-      // Keep existing messages visible during temporary polling failures.
-    } finally {
-      this.refreshing = false;
-    }
-  }
-
-  async loadOlder(): Promise<void> {
-    const user = this.peer();
-    const cursor = this.before;
-
-    if (!user || !cursor || this.loadingOlder()) return;
-
-    const generation = this.generation;
-    this.loadingOlder.set(true);
-    this.error.set("");
-
-    try {
-      const page = await this.chatService.list(user.id, cursor);
-
-      if (generation !== this.generation) return;
-
-      this.merge(page.items);
-      this.before = page.before;
-      this.hasMore.set(page.has_more);
-    } catch {
-      if (generation === this.generation) {
-        this.error.set("Could not load older messages.");
-      }
-    } finally {
-      if (generation === this.generation) {
-        this.loadingOlder.set(false);
-      }
-    }
-  }
-
-  async send(): Promise<void> {
-    const user = this.peer();
-    const text = this.draft().trim();
-
-    if (!user || !text || this.sending() || this.loading()) return;
-
-    const generation = this.generation;
-    const originalDraft = this.draft();
-
-    this.sending.set(true);
-    this.error.set("");
-
-    try {
-      const message = await this.chatService.send(
-        user.id,
-        text,
-        undefined,
-        true,
-      );
-
-      if (generation !== this.generation) return;
-
-      this.merge([message]);
-
-      // Preserve anything typed while the request was running.
-      if (this.draft() === originalDraft) this.draft.set("");
-    } catch {
-      if (generation === this.generation) {
-        this.error.set(
-          "Sending could not be confirmed. Refresh before retrying."
-        );
-      }
-    } finally {
-      if (!this.destroyed) this.sending.set(false);
-    }
+  ngOnDestroy() {
+    this.destroyed = true;
+    clearInterval(this.timer);
   }
 }

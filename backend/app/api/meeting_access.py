@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from app.schemas.base import StrictModel as BaseModel
+from pydantic import Field
 from sqlalchemy import select, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,7 +15,7 @@ from app.models.entities import (
     Meeting,
     MeetingAccessRequest,
 )
-from app.services.meeting_access_policy import (
+from app.services.meetings.meeting_access_policy import (
     readable_condition,
     manager_condition,
     require_manager,

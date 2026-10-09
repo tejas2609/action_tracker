@@ -7,8 +7,8 @@ from fastapi import HTTPException
 from app.core.database import Base
 from app.models.entities import Meeting,Commitment,Dependency,Event
 from app.repositories.store import Store
-from app.services.workflow import Workflow
-from app.services.intelligence import assess,descendants
+from app.services.commitments.workflow import Workflow
+from app.services.commitments.intelligence import assess,descendants
 from app.schemas.contracts import Review,Update
 class FakeAI:
     def __init__(self,result): self.result=result;self.payload=None
