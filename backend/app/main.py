@@ -15,21 +15,29 @@ from app.api.email_actions import router as email_actions_router
 from app.features.meeting_agendas.routes import router as meeting_agendas_router
 from app.api.meeting_access import router as meeting_access_router
 from app.api.source_actions import router as source_actions_router
+from app.api.notifications import router as notifications_router
+from app.services.notifications.notification_hub import hub
 
 
 @asynccontextmanager
 async def lifespan(app):
     logging.basicConfig(level=settings.log_level)
     validate_configuration()
+
+    await hub.start()
+
     try:
         yield
     finally:
         try:
-            if get_provider.cache_info().currsize:
-                await get_provider().close()
-                get_provider.cache_clear()
+            await hub.stop()
         finally:
-            engine.dispose()
+            try:
+                if get_provider.cache_info().currsize:
+                    await get_provider().close()
+                    get_provider.cache_clear()
+            finally:
+                engine.dispose()
 
 
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -89,3 +97,4 @@ app.include_router(email_actions_router)
 app.include_router(meeting_agendas_router)
 app.include_router(meeting_access_router)
 app.include_router(source_actions_router)
+app.include_router(notifications_router)

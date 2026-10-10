@@ -6,6 +6,7 @@ from app.repositories.people import PeopleRepository
 from app.models.people import User, Message
 from app.models.entities import Commitment, Event
 from app.services.sources.chat_source import enqueue_chat
+from app.services.notifications.notifications import notify
 
 
 def public_user(u):
@@ -156,6 +157,15 @@ def send(peer_id, body, actor=None, db=None):
     db.add(msg)
     db.flush()
     enqueue_chat(db, actor, peer, msg)
+    notify(
+        db,
+        organization_id=actor.organization_id,
+        recipient_id=peer.id,
+        kind="chat",
+        title=f"New message from {actor.name}",
+        event_key=f"chat:{msg.id}",
+        peer_id=actor.id,
+    )
     if body.commitment_id:
         db.add(
             Event(

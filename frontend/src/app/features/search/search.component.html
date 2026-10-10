@@ -1,6 +1,58 @@
 <div class="eyebrow">ASK YOUR COMMITMENTS</div>
 <h1>Find the next move.</h1>
-<p>Ask about promises, people, blockers or deadlines.</p>
+@if (searched()) {
+  <section>
+    <h2>{{ interpretation() }}</h2>
+
+    @if (summary().total !== undefined) {
+      <p class="muted">
+        {{ summary().total }} matching commitments · {{ summary().open }} open ·
+        {{ summary().at_risk }} at risk · {{ summary().blocked }} blocked
+      </p>
+    }
+
+    @if (groups().length > 1) {
+      <div class="workload-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Owner</th>
+              <th>Open</th>
+              <th>At risk</th>
+              <th>Blocked</th>
+              <th>Overdue</th>
+              <th>Completed</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (group of groups(); track group.owner_id ?? group.owner) {
+              <tr>
+                <td>{{ group.owner }}</td>
+                <td>{{ group.open }}</td>
+                <td>{{ group.at_risk }}</td>
+                <td>{{ group.blocked }}</td>
+                <td>{{ group.overdue }}</td>
+                <td>{{ group.completed }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (truncated()) {
+      <p class="muted">
+        Showing the first {{ results().length }} commitments. Summary totals
+        include all matches.
+      </p>
+    }
+  </section>
+} @else {
+  <div class="empty">
+    Ask a question to explore recorded commitments and their dependencies.
+  </div>
+}
 <form class="search-bar" (ngSubmit)="search()">
   <input
     [(ngModel)]="query"

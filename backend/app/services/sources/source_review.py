@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.entities import Commitment, Event
 from app.models.people import User
 from app.models.source_actions import CommitmentSource, SourceInbox
+from app.services.notifications.notifications import notify_commitment
 
 
 class AcceptSource(BaseModel):
@@ -171,7 +172,7 @@ def accept(
             message="Recipient accepted source proposal",
         )
     )
-
+    notify_commitment(db, commitment)
     db.commit()
     return {"id": commitment.id}
 

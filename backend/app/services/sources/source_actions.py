@@ -15,6 +15,7 @@ from app.services.sources.source_candidates import (
     candidate_payload,
     find_candidates,
 )
+from app.services.notifications.notifications import notify_commitment
 
 
 def attach(db, job, commitment, kind, item):
@@ -329,6 +330,7 @@ Return the complete final decision, including any supported related updates.
         db.flush()
 
         attach(db, job, commitment, "proposal", item)
+        notify_commitment(db, commitment)
 
     job.state = "processed"
 

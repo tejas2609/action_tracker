@@ -4,6 +4,7 @@ from app.models.entities import Meeting, Commitment, Dependency
 from app.schemas.contracts import Findings
 from app.models.people import User
 from sqlalchemy import select, func
+from app.services.notifications.notifications import notify_commitment
 
 EXTRACT = """
 Extract work commitments from the numbered meeting transcript.
@@ -231,6 +232,8 @@ class MeetingWorkflow:
                 c.owner_id = self.resolve_owner(item.owner, item.owner_id)
                 if c.owner_id:
                     c.owner = self.s.db.get(User, c.owner_id).name
+            if item.action != "link":
+                notify_commitment(self.s.db, c)
             confirmed[item.index] = c
         # Validate all suggested dependencies once, then apply atomically.
         proposed = set()

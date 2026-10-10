@@ -70,7 +70,7 @@
   border-radius: 12px;
   background: #f1f5f9;
 
-  p { white-space: pre-wrap; overflow-wrap: anywhere; }
+  p { white-space: pre-wrap; overflow-wrap: anywhere; color: black !important; margin-top: 5px !important; margin-bottom: 5px !important;}
   &.own { margin-left: auto; background: #d1fae5; }
 }
 

@@ -9,6 +9,7 @@ from app.services.commitments.team_deadlines import team_missed_deadlines
 from app.models.entities import MeetingParticipant
 from app.services.meetings.meeting_access_policy import require_workflow_access
 from app.services.meetings.meeting_access_policy import readable_condition
+from app.services.notifications.notifications import notify_commitment
 
 
 def editable(s, id):
@@ -103,9 +104,9 @@ def dashboard(missed_page=None, upcoming_page=None, page_size=None, s=None):
             page_size,
             True,
         ),
-        "team_missed": team_missed_deadlines(s, page_size=5)
-        if s.s.actor.is_manager
-        else None,
+        "team_missed": (
+            team_missed_deadlines(s, page_size=5) if s.s.actor.is_manager else None
+        ),
     }
 
 
@@ -383,6 +384,7 @@ def create_manual_commitment(workflow, body):
 
     # A new commitment with only existing prerequisites cannot create a cycle.
     # Commit the commitment, dependencies and events together.
+    notify_commitment(store.db, commitment)
     store.db.commit()
 
     rows, edges = workflow.snapshot()

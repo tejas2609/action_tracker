@@ -3,12 +3,17 @@ import { Api } from "./api.service";
 import { SessionService } from "./session.service";
 import { UsersService } from "./users.service";
 import { User } from "./models";
+import { NotificationsService } from "./notifications.service";
+
+
 @Injectable({ providedIn: "root" })
 export class AuthService {
   private api = inject(Api);
   private session = inject(SessionService);
   private users = inject(UsersService);
   private initialization?: Promise<void>;
+  private notifications = inject(NotificationsService);
+  
   initialize(): Promise<void> {
     return (this.initialization ??= this.restore());
   }

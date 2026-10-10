@@ -6,16 +6,16 @@ import {
   ViewChild,
   inject,
   signal,
+  effect,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { DatePipe } from "@angular/common";
 
 import { ChatService } from "../../shared/chat-panel/chat.service";
 import { SessionService } from "../../core/session.service";
-import {
-  ChatInboxUser,
-  ChatMessage,
-} from "../../core/models";
+import { ChatInboxUser, ChatMessage } from "../../core/models";
+import { ActivatedRoute } from "@angular/router";
+import { toSignal } from "@angular/core/rxjs-interop";
 
 @Component({
   selector: "app-chat",
@@ -48,7 +48,57 @@ export class Chat implements OnDestroy {
   @ViewChild("scrollArea")
   scroll?: ElementRef<HTMLElement>;
 
+  private queryParams = toSignal(inject(ActivatedRoute).queryParamMap);
+
+  private targetRequest = 0;
+  readonly openingPeer = signal(false);
+
+  private async openPeer(peerId: string | null) {
+    const request = ++this.targetRequest;
+
+    if (!peerId || this.selected()?.id === peerId) {
+      this.openingPeer.set(false);
+      return;
+    }
+
+    this.openingPeer.set(true);
+
+    try {
+      // Direct lookup works even when the peer is on another inbox page.
+      const result = await this.chat.list(peerId);
+
+      if (this.destroyed || request !== this.targetRequest) return;
+
+      this.selected.set({
+        ...result.peer,
+        conversation_id: result.conversation_id,
+        last_message_at: result.items.at(-1)?.created_at ?? null,
+        unread_count: 0,
+      });
+
+      this.messages.set(result.items);
+      this.before = result.before;
+      this.hasMore.set(result.has_more);
+      this.draft = "";
+      this.error.set("");
+      this.bottom();
+    } catch {
+      if (!this.destroyed && request === this.targetRequest) {
+        this.error.set("Unable to open this conversation.");
+      }
+    } finally {
+      if (!this.destroyed && request === this.targetRequest) {
+        this.openingPeer.set(false);
+        void this.refresh();
+      }
+    }
+  }
+
   constructor() {
+    effect(() => {
+      const peerId = this.queryParams()?.get("peer") ?? null;
+      void this.openPeer(peerId);
+    });
     void this.refresh();
 
     this.timer = setInterval(() => {
@@ -57,6 +107,8 @@ export class Chat implements OnDestroy {
   }
 
   choose(user: ChatInboxUser) {
+    ++this.targetRequest;
+    this.openingPeer.set(false);
     if (this.selected()?.id === user.id) return;
 
     this.selected.set(user);
@@ -84,14 +136,13 @@ export class Chat implements OnDestroy {
     this.messages.set(
       [...merged.values()].sort(
         (a, b) =>
-          a.created_at.localeCompare(b.created_at) ||
-          a.id.localeCompare(b.id),
+          a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
       ),
     );
   }
 
   async refresh() {
-    if (this.busy || this.destroyed) return;
+    if (this.busy || this.destroyed || this.openingPeer()) return;
     this.busy = true;
 
     try {
@@ -110,10 +161,7 @@ export class Chat implements OnDestroy {
       const currentId = peer.id;
       const result = await this.chat.list(currentId);
 
-      if (
-        this.destroyed ||
-        this.selected()?.id !== currentId
-      ) return;
+      if (this.destroyed || this.selected()?.id !== currentId) return;
 
       const firstLoad = this.messages().length === 0;
       this.merge(result.items);

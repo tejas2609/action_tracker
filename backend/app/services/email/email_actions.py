@@ -13,6 +13,7 @@ from app.models.email_actions import (
 )
 from app.services.email.gmail_integration import now
 from app.services.email.gmail_mailbox import GmailMailbox
+from app.services.notifications.notifications import notify_commitment
 
 BATCH_SIZE = 5
 
@@ -368,7 +369,7 @@ async def accept(db, actor, commitment_id, body):
             message="User reviewed and accepted the email proposal.",
         )
     )
-
+    notify_commitment(db, commitment)
     db.commit()
 
     return {"id": commitment.id, "status": "active"}

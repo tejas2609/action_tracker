@@ -8,6 +8,7 @@ from app.models import (
     logs,
     source_actions,
     security,
+    notifications,
 )
 
 if context.is_offline_mode():

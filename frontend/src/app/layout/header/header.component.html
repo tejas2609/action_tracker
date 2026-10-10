@@ -1,4 +1,84 @@
 <header>
-  <span>Workspace / {{ session.user()!.name }}</span
-  ><span class="header-mark">MAKE PROMISES VISIBLE</span>
+  <span>Workspace / {{ session.user()?.name }}</span>
+
+  <div class="header-actions">
+    <span class="header-mark">MAKE PROMISES VISIBLE</span>
+
+    <div class="notification-wrapper">
+      <button
+        type="button"
+        class="notification-bell"
+        aria-label="Notifications"
+        aria-controls="notification-panel"
+        [attr.aria-expanded]="opened()"
+        (click)="toggleNotifications()"
+      >
+      <mat-icon fontSet="material-icons-outlined" aria-hidden="true">
+        notifications
+      </mat-icon>
+
+        @if (notifications.unread() > 0) {
+          <span class="notification-count">
+            {{
+              notifications.unread() > 99
+                ? "99+"
+                : notifications.unread()
+            }}
+          </span>
+        }
+      </button>
+
+      @if (opened()) {
+        <section
+          id="notification-panel"
+          class="notification-panel"
+          aria-label="Notifications"
+          (keydown.escape)="opened.set(false)"
+        >
+          <div class="notification-heading">
+            <strong>Notifications</strong>
+
+            <button type="button" (click)="opened.set(false)">
+              Close
+            </button>
+          </div>
+
+          @if (notifications.error()) {
+            <p role="status">{{ notifications.error() }}</p>
+          }
+
+          @if (actionError()) {
+            <p role="alert">{{ actionError() }}</p>
+          }
+
+          <div class="notification-list">
+            @for (item of notifications.items(); track item.id) {
+              <button
+                type="button"
+                class="notification-item"
+                [class.unread]="!item.read_at"
+                [disabled]="working()"
+                (click)="open(item)"
+              >
+                <span>{{ item.title }}</span>
+                <small>{{ item.created_at | date: "medium" }}</small>
+              </button>
+            } @empty {
+              <p>
+                {{
+                  notifications.connected()
+                    ? "No notifications yet."
+                    : "Connecting live notifications…"
+                }}
+              </p>
+            }
+          </div>
+
+          <small class="notification-footer">
+            Latest 50 notifications
+          </small>
+        </section>
+      }
+    </div>
+  </div>
 </header>

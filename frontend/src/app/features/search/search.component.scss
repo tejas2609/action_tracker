@@ -33,3 +33,25 @@
     flex-direction: column;
   }
 }
+.workload-table {
+  overflow-x: auto;
+  margin: 20px 0;
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th,
+  td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+
+  th {
+    color: var(--muted);
+    font-size: 12px;
+  }
+}

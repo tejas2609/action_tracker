@@ -31,7 +31,7 @@ import { SourceReview } from "./source-review/source-review.component";
     Pagination,
     EmailReview,
     A11yModule,
-    SourceReview
+    SourceReview,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./commitments.component.html",
@@ -97,13 +97,17 @@ export class Commitments {
   constructor() {
     effect(() => {
       const requested = this.queryParams()?.get("view");
+
       this.view.set(
-        requested === "team-missed" && this.session.user()?.is_manager
-          ? "team-missed"
-          : requested === "graph"
-            ? "graph"
-            : "list",
+        requested === "review"
+          ? "review"
+          : requested === "team-missed" && this.session.user()?.is_manager
+            ? "team-missed"
+            : requested === "graph"
+              ? "graph"
+              : "list",
       );
+
       this.page.set(1);
     });
     effect(() => {
